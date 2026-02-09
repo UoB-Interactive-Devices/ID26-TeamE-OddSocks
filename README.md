@@ -1,1 +1,3 @@
 # ID26-TeamE-OddSocks
+
+Our project reimagines the traditional dream catcher as a multisensory sleep enhancement system designed for users seeking truly restful sleep and experiences of lucid dreaming. The device blends aesthetic room decor with sensory technology, offering potential to sync with a wearable ring to monitor sleep quality and trigger sensory activators when necessary. The device aims to play on the user’s 5 senses (Sight, Sound, Touch, Hearing, and Scent) to influence dream content and REM sleep. Users should be able to personalise their settings or schedule with manual configuration or with conversational communication with the device.
