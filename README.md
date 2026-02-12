@@ -30,6 +30,9 @@ Write here...
 
 Write here...
 
+# Initial Research and User Feedback:
+
+Write here...
 
 # Prototypes and Design:
 
