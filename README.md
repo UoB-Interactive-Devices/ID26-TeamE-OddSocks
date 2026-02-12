@@ -39,8 +39,8 @@ Write here...
 Write here...
 
 # Prototype Testing and User Feedback:
-
-Write here...
+ - Bodystorming.
+ - Further tests.
 
 # Considerations:
 
