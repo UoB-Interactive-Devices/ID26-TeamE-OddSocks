@@ -26,6 +26,14 @@ Our project reimagines the traditional dream catcher as a multisensory sleep enh
 
 Write here...
 
+<img width="699" height="581" alt="image" src="https://github.com/user-attachments/assets/40ad591d-6c9b-49cf-9c09-e6a97bd079fc" />
+
+<img width="858" height="222" alt="image" src="https://github.com/user-attachments/assets/2d576d47-cecd-431d-9ef3-0ae50449155a" />
+
+<img width="376" height="442" alt="image" src="https://github.com/user-attachments/assets/f477a079-2d2a-4b4f-95c1-6b53beccb915" />
+
+
+
 # Target User and Personas:
 
 Write here...
