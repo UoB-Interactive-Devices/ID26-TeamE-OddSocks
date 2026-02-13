@@ -72,30 +72,72 @@ The ideas seemed quite generic and since last year's brief centered on companion
 - Posture Fixing Device:
 The idea is quite generic, there are many existing tools to fix posture as it is a well explored idea. Additionally, we felt as though the sleep idea had a larger scope with more features user touchpoints.
 
-
 # Target User and Personas:
 
-Write here...
+NEED TO DO THIS PROPERLY
 
 # Initial Research and User Feedback:
 
+ - Similar projects
+   - How does ours differ from these
+ - Technology, what is possible.
+ - Do people think the idea would work.
+
+# Initial Design:
+
+3 Seperate detailed diagrams:
+-
+
+INSERT PHOTOS HERE
+
+
 Write here...
 
-# Prototypes and Design:
+# Prototype, Testing and User Feedback:
 
-Write here...
+Plasticine Prototyping:
+-
+Following on from our session brainstorming, we developed a quick prototype using plasticine to illustrate the structure and features of the device. 
+MORE ABOUT THIS PART
+This was useful to bodystorm how someone would interact with the device and use it.
 
-# Prototype Testing and User Feedback:
- - Bodystorming.
- - Further tests.
+INSERT PHOTOS HERE
+
+Using our plasticine prototype we performed a bodystorming activity to demonstrate how someone would interact with the device, identifying risk factors and pain points early with the low fidelity prototype.
+
+INSERT PHOTOS HERE
+
+Contextual Observations:
+-
+Within the realm of podystorming, we tested out our concept by examining the different contexts in which it would exist:
+
+Spacial
+Social
+Technological
+Hygeinic
+Physical
+Activity
+
+Early Feedback:
+-
+WRITE HERE...
 
 # Considerations:
 
-Write here...
+Based on the contextual analysis and prototype testing we identified important considerations:
+
+Social context - Single sleepers?
+Spacial context - Where in the room?
+Technological context - How will the user interact with it
+Physical context - Ambient noise (fans). Ambient light
+Activity context - Waking up, change of schedule, alarm, sleep?
 
 # Risks:
 
-Write here...
+Falling on head.
+Scent overload
+Sensory overload
+Strangulation
 
 # Final Device:
 
