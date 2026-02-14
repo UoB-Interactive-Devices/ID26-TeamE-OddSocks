@@ -12,6 +12,11 @@ Elliot Golledge
 
 Ethan Rogers
 
+# Abstract
+
+We began the development of our project by generating potential ideas that fit within the theme of 'home and habits',  iteratively building on these as a team using a 'Yes, and...' approach. After landing on the idea of a device relating to a user's sleep, we narrowed our scope to a device that specifically increases sleep quality, rather than other areas of sleeping sich as lucid dreaming, or waking up smoothly. Early development included creating low-fidelity plasticine prototypes to bodystorm and further understand the different contexts of our device, something that was useful to identify considerations to take into design.
+
+
 # Initial Manifesto
 
 Our project reimagines the traditional dream catcher as a multisensory sleep enhancement system designed for users seeking truly restful sleep and experiences of lucid dreaming. The device blends aesthetic room decor with sensory technology, offering potential to sync with a wearable ring to monitor sleep quality and trigger sensory activators when necessary. The device aims to play on the user’s 5 senses (Sight, Sound, Touch, Hearing, and Scent) to influence dream content and REM sleep. Users should be able to personalise their settings or schedule with manual configuration or with conversational communication with the device.
@@ -27,7 +32,6 @@ Our project reimagines the traditional dream catcher as a multisensory sleep enh
 Our first step of coming up with an idea to take forward with development was taking 5 minutes to brainstorm rooms in the home or public spaces. We then took a further 10 minutes to brainstorm activities that take place in these spaces so that we could find inspiration as to what our project could center around. This process can be seen in the diagram below, the main goal of this task was to get us broadening our scope within the theme of 'home and habits'.
 
 <img width="699" height="581" alt="image" src="https://github.com/user-attachments/assets/40ad591d-6c9b-49cf-9c09-e6a97bd079fc" />
-Brainstorm1
 
 Our next ideation exercise used a 'Yes, and...' approach (pictured below), where we each created 3 initial ideas or starting points (using inspiration from the brainstorming exercise), with the next person in the cycle building or expanding on it. We rotated across so that we were alll aware of everyone else's idea and had a chance to provide feedback. This task helped flesh out ideas that had stemmed from the first brainstorming activity.
 
