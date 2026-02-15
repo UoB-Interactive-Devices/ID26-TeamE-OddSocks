@@ -19,13 +19,19 @@ We began the development of our project by generating potential ideas that fit w
 
 # Initial Manifesto
 
-Our project reimagines the traditional dream catcher as a multisensory sleep enhancement system designed for users seeking truly restful sleep and experiences of lucid dreaming. The device blends aesthetic room decor with sensory technology, offering potential to sync with a wearable ring to monitor sleep quality and trigger sensory activators when necessary. The device aims to play on the user’s 5 senses (Sight, Sound, Touch, Hearing, and Scent) to influence dream content and REM sleep. Users should be able to personalise their settings or schedule with manual configuration or with conversational communication with the device.
+Sleep quality is an underlooked and often neglected component of a healthy, fulfilling, and productive life. Oftentimes, we shift focus away from this core foundation of our everyday experience, deferring to lifestyle distractions such as the tenuous balance between work and home life, the desire to utilise all available time in the evening, as well as the dysregulating danger of doomscrolling. Our project aims to revitalise the public consciousness around sleep, by providing an engaging, interactive and science-backed framework for meaningful quality of sleep and dream enhancement.
 
-# Similiar Projects:
+Our project reimagines the traditional dream catcher as a multisensory sleep enhancement system designed for users seeking truly restful sleep and experiences of lucid dreaming. The device blends aesthetic room decor with sensory technology, offering potential to sync with a wearable ring to monitor sleep quality and trigger sensory activators when necessary. The device aims to play on the user’s 5 senses (Sight, Sound, Touch, Taste, and Scent) to influence dream content, REM sleep, and overall sleep quality. Users will be able to personalise their settings or schedule with manual app-controlled configuration, conversational communication with the device, or on-device controls.
 
-.Dreem headband - EEG based sleep tracking, uses audio during specific stages of sleep cycles to encourage REM(Research it's based on - https://www.sciencedirect.com/science/article/pii/S1389945725003739)
+We aim to help users experience more restful, grounded sleep, which supports mental and physical function across all areas of day-to-day life. We will do this by building a consistent, multi-sensory wind-down ritual guided by the dreamcatcher, broadcasting warm lights, evidence-backed calming tones, alongside additional optional features such as essential oil diffusal and haptic tentacles for calming physical feedback. This can be done in combination with a smart ring for vitals data collection and realtime system feedback to encourage deeper sleep and additionally assist in inducing lucid dreaming.
 
-.Dodow sleep aid - Projects rhythmic lights to help with sleep onset(A little info on it:https://www.bing.com/search?pglt=393&q=dodow+sleep+aid&cvid=1711971658fd4dcdaef65ba3614df14d&gs_lcrp=EgRlZGdlKgYIABBFGDkyBggAEEUYOTIGCAEQABhAMgYIAhAAGEAyBggDEAAYQDIGCAQQABhAMgYIBRAAGEDSAQgyMTgxajBqMagCALACAA&FORM=ANNTA1&PC=ACTS)
+The device is intended to be attached to a wall near the heardboard of a bed or to the ceiling, for use of the haptic tentacle and to project localised light glows for the wind-down routine. It mimics the traditional dreamcatcher design for aesthetic integration and calming effect.
+
+# Similar Projects:
+
+- Dreem headband - EEG based sleep tracking, uses audio during specific stages of sleep cycles to encourage REM - based on [research](https://www.sciencedirect.com/science/article/pii/S1389945725003739)
+
+- [Dodow sleep aid](https://livlab.care/en-gb/collections/sleep-relaxation/products/dodow) - Projects rhythmic lights to help with sleep onset
 
 # Ideation:
 
