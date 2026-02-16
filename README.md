@@ -1,5 +1,9 @@
 # ID26-TeamE-OddSocks
 
+Edit: https://www.overleaf.com/6848587321rwxbrrkczbwr#0b7221
+
+View: 
+https://www.overleaf.com/read/hpxfyqzkxcvp#a09834
 # Team Members
 
 Toby Kershaw
