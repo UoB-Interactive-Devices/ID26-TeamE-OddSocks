@@ -1,9 +1,14 @@
 # ID26-TeamE-OddSocks
 
+![IMG_2583](https://github.com/user-attachments/assets/00eba297-fa2c-44b7-a1e0-ba4bf17f50f6)
+
+
 Edit: https://www.overleaf.com/6848587321rwxbrrkczbwr#0b7221
 
-View: 
-https://www.overleaf.com/read/hpxfyqzkxcvp#a09834
+View: https://www.overleaf.com/read/hpxfyqzkxcvp#a09834
+
+MS Forms: https://forms.cloud.microsoft/Pages/DesignPageV2.aspx?subpage=design&FormId=MH_ksn3NTkql2rGM8aQVGwd8QlN-FuhIiwM0mrZjnLpURjAxRlUyQUFQU1dKV0hUREtQSEdPVzNGTy4u&Token=0b30b989468140febc809699458bc82b
+
 # Team Members
 
 Toby Kershaw
@@ -99,13 +104,73 @@ NEED TO DO THIS PROPERLY
 
 # Initial Design:
 
-3 Seperate detailed diagrams:
+3 Seperate diagrams:
 -
+3 Members of the team independently drew a labelled diagram of our idea. This was useful to identify areas of misconception and where different ideas could build on eachother.
 
-INSERT PHOTOS HERE
+As a result we assessed each diagram, discussing which features worked, and what didn't:
+
+<img width="543" height="636" alt="image" src="https://github.com/user-attachments/assets/c6433cab-eb99-4def-99c1-c56d466ac6ce" />
+
+After this pros and cons comparison, we built a list of features we will proceed with:
+
+Backing:
+- Bars to connect central housing to outer rim
 
 
-Write here...
+Mounting:
+- 1 In central housing
+- 2 on each side on outer rim.
+- Extra hook for ceiling attachment dangling
+
+
+Lights:
+- Ring light on external body
+- Ring light inside ring as well
+- Connect to central with hidden wire
+ - https://www.ledsupply.com/leds/cree-xlamp-xp-e2-color-high-power-led-star - ‘PC Amber’ LEDs for no blue light
+ - https://www.ledsupply.com/leds/cree-xlamp-xpe-high-power-led-star - ‘Deep/Photo’ Red LEDs for no blue light (good as a night light), can switch and mix between the 2 for different colours
+
+
+Speakers:
+- Central housing
+
+  
+Scent:
+- Detachable?
+- Spraying liquid
+- Fan spreading smell
+
+
+Haptic/Touch:
+- Tentacle
+- Flexible
+- Magnetic or male/female connectors
+- Connected ring
+- Connected head piece
+
+
+Power:
+- Battery
+- Charged with tentacle
+
+
+User Interface:
+- LED to show power (Similar to what game) (but needs to be low blue light…)
+- Dial or button.
+- Display minimal
+- Usable WITHOUT a phone
+- Low blue light
+
+
+Design:
+- Design fairly standardised with dream catchers
+- Inner circle, outer circle
+- Lines/strings, make sure not to cut into the lights on the inner side of the outer layer
+- Scent pads look like mini dream catchers ie seen on other designs
+- Feathers, dangled parts can be just for design if every feature has been covered.
+- Wire leading to haptic feedback should be thin and subtle
+
 
 # Prototype, Testing and User Feedback:
 
