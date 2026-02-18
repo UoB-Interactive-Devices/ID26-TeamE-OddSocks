@@ -11,6 +11,10 @@ MS Forms: https://forms.cloud.microsoft/Pages/DesignPageV2.aspx?subpage=design&F
 
 MS Forms (User interest - Answer link): https://forms.cloud.microsoft/e/RmrYMa61K4
 
+Information Sheet: https://uob.sharepoint.com/:w:/r/teams/grp-grp-interactivedevices2025-2026/Shared%20Documents/Group%20E%20(Odd%20Socks)%20-%20Dreamcatcher/informationsheet_InteractionDesignUnit_2026.docx?d=w273e84ab064e4b18b452bdf073fa2d27&csf=1&web=1&e=eqJndP
+
+Consent form: https://uob.sharepoint.com/:w:/r/teams/grp-grp-interactivedevices2025-2026/Shared%20Documents/Group%20E%20(Odd%20Socks)%20-%20Dreamcatcher/consentform_InteractionDesignUnit_2023.docx?d=w7e3d0a3bc003414db8840d96f0177825&csf=1&web=1&e=6SCDDf
+
 # Team Members
 
 Toby Kershaw
