@@ -9,6 +9,8 @@ View: https://www.overleaf.com/read/hpxfyqzkxcvp#a09834
 
 MS Forms: https://forms.cloud.microsoft/Pages/DesignPageV2.aspx?subpage=design&FormId=MH_ksn3NTkql2rGM8aQVGwd8QlN-FuhIiwM0mrZjnLpURjAxRlUyQUFQU1dKV0hUREtQSEdPVzNGTy4u&Token=0b30b989468140febc809699458bc82b
 
+MS Forms (User interest - Answer link): https://forms.cloud.microsoft/e/RmrYMa61K4
+
 # Team Members
 
 Toby Kershaw
@@ -43,6 +45,12 @@ The device is intended to be attached to a wall near the heardboard of a bed or 
 - Dreem headband - EEG based sleep tracking, uses audio during specific stages of sleep cycles to encourage REM - based on [research](https://www.sciencedirect.com/science/article/pii/S1389945725003739)
 
 - [Dodow sleep aid](https://livlab.care/en-gb/collections/sleep-relaxation/products/dodow) - Projects rhythmic lights to help with sleep onset
+
+- https://dl.acm.org/doi/10.1145/3643834.3661562 - A design-research paper arguing that dreams can be treated as a material for interaction design. It explores how designers might responsibly build “dream technologies” (tools, prompts, and interventions) to shape and reflect on dream experiences, and discusses ethical concerns and opportunities for reflective practice.
+
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC7415562/ - A review that surveys sensory stimulation technologies (haptics, olfaction, temperature, vestibular, auditory) and their potential to modulate sleep and dreaming. The paper links VR/human-computer interaction tech to “dream engineering,” outlines methods for sensory incorporation into sleep, and flags ethical implications of targeted dream modulation.
+
+- https://www.sciencedirect.com/science/article/pii/S0149763423003482?utm_source=chatgpt.com - A technical review of closed-loop auditory stimulation (CLAS) methods used to detect and drive slow-wave activity during sleep. It covers theory, implementation best practices, and how CLAS experiments illuminate the causal role of slow oscillations in sleep functions (memory, restoration), useful background if you plan auditory interventions during sleep.
 
 # Ideation:
 
