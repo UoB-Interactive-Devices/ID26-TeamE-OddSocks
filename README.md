@@ -23,7 +23,9 @@ Ethan Rogers
 
 # Abstract
 
-We began the development of our project by generating potential ideas that fit within the theme of 'home and habits',  iteratively building on these as a team using a 'Yes, and...' approach. After landing on the idea of a device relating to a user's sleep, we narrowed our scope to a device that specifically increases sleep quality, rather than other areas of sleeping sich as lucid dreaming, or waking up smoothly. Early development included creating low-fidelity plasticine prototypes to bodystorm and further understand the different contexts of our device, something that was useful to identify considerations to take into design.
+Sleep quality is a foundational, yet often neglected aspect of wellbeing, compromised by evening distractions and dysregulated wind-down routines. Poor sleeping habits can lead to negative impacts on daily productivity, happiness, and overall health. There is a world of technology aimed at increasing sleep quality, but an undexplored dimension of empowering people to take control of their sleep through lucid dreaming.
+
+This paper presents the exploration and development of a multisensory dream-enhancement system in the form factor of a traditional dream catcher, designed to support a lucid dreaming experience. Lucid dreaming offers the potential to optimise the value of every hour of the day, enabling an individual’s creativity to run wild, or even use the hours of the night to continue working while sleeping. We will validate the success of this device by REM tests and user feedback.
 
 
 # Initial Manifesto
