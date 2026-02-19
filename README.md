@@ -33,7 +33,7 @@ Ethan Rogers
 
 # Abstract
 
-Sleep quality is a foundational, yet often neglected aspect of wellbeing, compromised by evening distractions and dysregulated wind-down routines. Poor sleeping habits can lead to negative impacts on daily productivity, happiness, and overall health. There is a world of technology aimed at increasing sleep quality, but an undexplored dimension of empowering people to take control of their sleep through lucid dreaming.
+Sleep quality is a foundational, yet often neglected aspect of wellbeing, compromised by evening distractions and dysregulated wind-down routines. Poor sleeping habits can lead to negative impacts on daily productivity, happiness, and overall health. There is a world of technology aimed at increasing sleep quality, but an underexplored dimension of empowering people to take control of their sleep through lucid dreaming.
 
 This paper presents the exploration and development of a multisensory dream-enhancement system in the form factor of a traditional dream catcher, designed to support a lucid dreaming experience. Lucid dreaming offers the potential to optimise the value of every hour of the day, enabling an individual’s creativity to run wild, or even use the hours of the night to continue working while sleeping. We will validate the success of this device by REM tests and user feedback.
 
@@ -219,19 +219,14 @@ Social - Same settings / environment for people in the same room / bed and diffe
 
 Technological - Will the device settings be conversational, triggered on the device, triggered by ongoing monitoring, or controled by an associated app?
 
-
 Hygienic - Liquid for scents could get mouldy over time.
 
 Physical - Will the user be able to reach the device to turn on. Will the liquid be contained, what if it shakes? Moving parts will create noise.
 
 Activity - Sleeping (Wake up times, changing schedules etc.)
 
-Early Feedback:
+Early Feedback and Considerations:
 -
-WRITE HERE...
-
-# Considerations:
-
 Based on the contextual analysis and prototype testing we identified important considerations:
 
 
@@ -244,6 +239,28 @@ Technological context - The user will turn it on from a built in switch, and set
 Physical context - Ensure the liquid for scent doesn't leak. Ambient noise (fans). Ambient light.
 
 Activity context - Encourage users to turn device off when they wake up, can be connected to the ring so it autmatically turns off when wristband removed.
+
+# Further prototypes:
+
+Scent
+-
+
+Insert here...
+
+Light
+-
+
+Insert here...
+
+Sound
+-
+
+Insert here...
+
+Haptics
+-
+
+Insert here...
 
 # Risks:
 
