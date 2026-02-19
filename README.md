@@ -54,6 +54,8 @@ The device is intended to be attached to a wall near the heardboard of a bed or 
 
 - [Dodow sleep aid](https://livlab.care/en-gb/collections/sleep-relaxation/products/dodow) - Projects rhythmic lights to help with sleep onset
 
+- Dormio (Dream incubation rather than lucid dreaming) - https://www.media.mit.edu/projects/sleep-creativity/overview/. https://pubmed.ncbi.nlm.nih.gov/32480292/
+
 - https://dl.acm.org/doi/10.1145/3643834.3661562 - A design-research paper arguing that dreams can be treated as a material for interaction design. It explores how designers might responsibly build “dream technologies” (tools, prompts, and interventions) to shape and reflect on dream experiences, and discusses ethical concerns and opportunities for reflective practice.
 
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC7415562/ - A review that surveys sensory stimulation technologies (haptics, olfaction, temperature, vestibular, auditory) and their potential to modulate sleep and dreaming. The paper links VR/human-computer interaction tech to “dream engineering,” outlines methods for sensory incorporation into sleep, and flags ethical implications of targeted dream modulation.
