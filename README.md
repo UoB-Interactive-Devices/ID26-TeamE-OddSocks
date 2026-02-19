@@ -7,9 +7,9 @@ Edit: https://www.overleaf.com/6848587321rwxbrrkczbwr#0b7221
 
 View: https://www.overleaf.com/read/hpxfyqzkxcvp#a09834
 
-MS Forms: https://forms.cloud.microsoft/Pages/DesignPageV2.aspx?subpage=design&FormId=MH_ksn3NTkql2rGM8aQVGwd8QlN-FuhIiwM0mrZjnLpURjAxRlUyQUFQU1dKV0hUREtQSEdPVzNGTy4u&Token=0b30b989468140febc809699458bc82b
+Survey 1 (Editable): https://forms.cloud.microsoft/Pages/DesignPageV2.aspx?subpage=design&FormId=MH_ksn3NTkql2rGM8aQVGwd8QlN-FuhIiwM0mrZjnLpURjAxRlUyQUFQU1dKV0hUREtQSEdPVzNGTy4u&Token=0b30b989468140febc809699458bc82b
 
-MS Forms (User interest - Answer link): https://forms.cloud.microsoft/e/RmrYMa61K4
+Survey 1 (Viewable only): https://forms.cloud.microsoft/e/RmrYMa61K4
 
 Information Sheet: https://uob.sharepoint.com/:w:/r/teams/grp-grp-interactivedevices2025-2026/Shared%20Documents/Group%20E%20(Odd%20Socks)%20-%20Dreamcatcher/informationsheet_InteractionDesignUnit_2026.docx?d=w273e84ab064e4b18b452bdf073fa2d27&csf=1&web=1&e=eqJndP
 
