@@ -1,7 +1,7 @@
 # ID26-TeamE-OddSocks
 
 ![IMG_2583](https://github.com/user-attachments/assets/00eba297-fa2c-44b7-a1e0-ba4bf17f50f6)
-
+TA: Wenda Zhao
 
 Edit: https://www.overleaf.com/6848587321rwxbrrkczbwr#0b7221
 
