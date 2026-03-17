@@ -59,6 +59,14 @@
         min: 10, max: 120, step: 10,
         format: function(v) { return v + "m"; },
         onchange: function(v) { settings.minConsec = v * 6E4; save(); }
+      },
+      "Measure Log": {
+        value: !!settings.measurementLogEnabled,
+        onchange: function(v) { settings.measurementLogEnabled = v; save(); }
+      },
+      "Event Log": {
+        value: !!settings.eventLogEnabled,
+        onchange: function(v) { settings.eventLogEnabled = v; save(); }
       }
     });
   }

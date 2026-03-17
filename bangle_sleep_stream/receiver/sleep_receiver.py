@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 import signal
@@ -22,9 +23,12 @@ from pathlib import Path
 from typing import Optional
 
 from bleak import BleakClient, BleakScanner
+from bleak.exc import BleakCharacteristicNotFoundError
 
 SERVICE_UUID = "12345678-1234-5678-1234-56789abc0000"
 UPDATE_CHAR_UUID = "12345678-1234-5678-1234-56789abc0001"
+UART_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
+UART_TX_CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 
 
 @dataclass
@@ -74,12 +78,14 @@ class ReceiverDaemon:
         scan_timeout: float,
         connect_timeout: float,
         settle_seconds: float,
+        scan_debug: bool,
     ) -> None:
         self.name_prefix = name_prefix
         self.db_path = db_path
         self.scan_timeout = scan_timeout
         self.connect_timeout = connect_timeout
         self.settle_seconds = settle_seconds
+        self.scan_debug = scan_debug
 
         self.log = logging.getLogger("sleep_receiver")
         self.stop_event = asyncio.Event()
@@ -88,6 +94,7 @@ class ReceiverDaemon:
         self.backoff_seconds = 2.0
         self.max_backoff_seconds = 30.0
         self.last_sequence: Optional[int] = None
+        self.uart_buffer = ""
 
         self.conn = sqlite3.connect(self.db_path)
         self.conn.execute("PRAGMA journal_mode=WAL")
@@ -127,24 +134,51 @@ class ReceiverDaemon:
 
         best = None
         best_rssi = -999
+        fallback = None
+        fallback_rssi = -999
+        fallback_prefixes = ("BangleSleep", "Bangle.js", "Bangle")
         for dev, adv in discovered.values():
             name = dev.name or adv.local_name or ""
             uuids = [u.lower() for u in (adv.service_uuids or [])]
             has_service = SERVICE_UUID.lower() in uuids
             has_name = name.startswith(self.name_prefix)
-            if not (has_name or has_service):
-                continue
+
             rssi = getattr(adv, "rssi", None)
             if rssi is None:
                 rssi = getattr(dev, "rssi", -999)
             if rssi is None:
                 rssi = -999
+
+            if self.scan_debug:
+                self.log.info(
+                    "scan-debug: name=%r addr=%s rssi=%s uuids=%s",
+                    name,
+                    dev.address,
+                    rssi,
+                    uuids,
+                )
+
+            if any(name.startswith(prefix) for prefix in fallback_prefixes):
+                if rssi > fallback_rssi:
+                    fallback = dev
+                    fallback_rssi = rssi
+
+            if not (has_name or has_service):
+                continue
             if rssi > best_rssi:
                 best = dev
                 best_rssi = rssi
 
         if best:
             self.log.info("scan: selected %s (%s) rssi=%s", best.name, best.address, best_rssi)
+        elif fallback:
+            self.log.warning(
+                "scan: no service/name-prefix match; using fallback candidate %s (%s) rssi=%s",
+                fallback.name,
+                fallback.address,
+                fallback_rssi,
+            )
+            best = fallback
         else:
             self.log.warning("scan: no matching device found")
         return best
@@ -152,6 +186,20 @@ class ReceiverDaemon:
     def on_disconnect(self, _client: BleakClient) -> None:
         self.log.warning("ble: disconnected")
         self.disconnect_event.set()
+
+    def _log_gatt_map(self, client: BleakClient) -> None:
+        try:
+            services = client.services
+            if not services:
+                self.log.warning("gatt: no services cached on client")
+                return
+            for service in services:
+                self.log.info("gatt: service %s", service.uuid)
+                for ch in service.characteristics:
+                    props = ",".join(ch.properties) if ch.properties else ""
+                    self.log.info("gatt:   char %s props=%s", ch.uuid, props)
+        except Exception as exc:
+            self.log.warning("gatt: failed to dump services: %s", exc)
 
     def _persist_packet(self, pkt: SleepPacket, peer: str) -> None:
         recv_ts_ms = int(time.time() * 1000)
@@ -204,6 +252,41 @@ class ReceiverDaemon:
         )
         self._persist_packet(pkt, peer)
 
+    def handle_uart_line(self, line: str, peer: str) -> None:
+        line = line.strip()
+        if not line:
+            return
+        try:
+            obj = json.loads(line)
+        except Exception:
+            return
+
+        if obj.get("t") != "sleepstream":
+            return
+
+        pkt = SleepPacket(
+            version=int(obj.get("v", 1)),
+            status=int(obj.get("status", 0)),
+            consecutive=int(obj.get("consecutive", 0)),
+            source_mode=int(obj.get("source_mode", 0)),
+            sequence=int(obj.get("seq", 0)),
+            watch_ts_sec=int(obj.get("ts", 0)),
+            movement=obj.get("movement", None),
+            bpm=obj.get("bpm", None),
+        )
+
+        self.log.info(
+            "uart-notify: seq=%d status=%d consecutive=%d source=%d ts=%d bpm=%s movement=%s",
+            pkt.sequence,
+            pkt.status,
+            pkt.consecutive,
+            pkt.source_mode,
+            pkt.watch_ts_sec,
+            pkt.bpm,
+            pkt.movement,
+        )
+        self._persist_packet(pkt, peer)
+
     async def connect_and_stream(self, device) -> None:
         self.disconnect_event.clear()
         self.log.info("ble: connecting to %s", device.address)
@@ -215,22 +298,46 @@ class ReceiverDaemon:
         ) as client:
             await asyncio.sleep(self.settle_seconds)
 
-            initial = await client.read_gatt_char(UPDATE_CHAR_UUID)
-            self.handle_packet(initial, device.address, from_read=True)
+            try:
+                initial = await client.read_gatt_char(UPDATE_CHAR_UUID)
+                self.handle_packet(initial, device.address, from_read=True)
 
-            def notify_callback(_sender: int, data: bytearray) -> None:
-                try:
-                    self.handle_packet(data, device.address, from_read=False)
-                except Exception as exc:  # keep stream alive on decode/db errors
-                    self.log.exception("notify handling error: %s", exc)
+                def notify_callback(_sender: int, data: bytearray) -> None:
+                    try:
+                        self.handle_packet(data, device.address, from_read=False)
+                    except Exception as exc:  # keep stream alive on decode/db errors
+                        self.log.exception("notify handling error: %s", exc)
 
-            await client.start_notify(UPDATE_CHAR_UUID, notify_callback)
-            self.log.info("ble: subscribed to notifications")
+                await client.start_notify(UPDATE_CHAR_UUID, notify_callback)
+                self.log.info("ble: subscribed to custom sleep characteristic")
+                active_char = UPDATE_CHAR_UUID
+            except BleakCharacteristicNotFoundError:
+                self.log.warning(
+                    "ble: custom characteristic missing, falling back to UART notify (%s)",
+                    UART_TX_CHAR_UUID,
+                )
+                self._log_gatt_map(client)
+
+                self.uart_buffer = ""
+
+                def uart_notify_callback(_sender: int, data: bytearray) -> None:
+                    try:
+                        chunk = bytes(data).decode("utf-8", errors="ignore")
+                        self.uart_buffer += chunk
+                        while "\n" in self.uart_buffer:
+                            line, self.uart_buffer = self.uart_buffer.split("\n", 1)
+                            self.handle_uart_line(line, device.address)
+                    except Exception as exc:
+                        self.log.exception("uart notify handling error: %s", exc)
+
+                await client.start_notify(UART_TX_CHAR_UUID, uart_notify_callback)
+                self.log.info("ble: subscribed to UART fallback notifications")
+                active_char = UART_TX_CHAR_UUID
 
             await self.disconnect_event.wait()
 
             try:
-                await client.stop_notify(UPDATE_CHAR_UUID)
+                await client.stop_notify(active_char)
             except Exception:
                 pass
 
@@ -275,6 +382,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scan-timeout", type=float, default=10.0, help="BLE scan timeout seconds")
     parser.add_argument("--connect-timeout", type=float, default=25.0, help="BLE connect timeout seconds")
     parser.add_argument("--settle-seconds", type=float, default=1.0, help="Delay after connect before IO")
+    parser.add_argument("--scan-debug", action="store_true", help="Log every discovered BLE advertisement")
     parser.add_argument("--debug", action="store_true", help="Enable debug logs")
     return parser.parse_args()
 
@@ -286,6 +394,7 @@ async def async_main(args: argparse.Namespace) -> None:
         scan_timeout=args.scan_timeout,
         connect_timeout=args.connect_timeout,
         settle_seconds=args.settle_seconds,
+        scan_debug=args.scan_debug,
     )
 
     loop = asyncio.get_running_loop()

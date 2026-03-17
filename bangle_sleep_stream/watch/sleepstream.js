@@ -17,7 +17,9 @@
     maxAwake: 36E5,
     minConsec: 18E5,
     advertiseWhenDisconnected: true,
-    deviceNamePrefix: "BangleSleep"
+    deviceNamePrefix: "BangleSleep",
+    measurementLogEnabled: true,
+    eventLogEnabled: true
   };
 
   var STATUS = {

@@ -45,6 +45,51 @@
       bpm: 0xFFFF
     }),
 
+    logEvent: function(kind, message, detail) {
+      if (!this.conf.eventLogEnabled) return;
+      var now = Date.now();
+      var row = [now, kind || "info", message || "", detail || ""].join("|") + "\n";
+      require("Storage").open("sleepstream.events.log", "a").write(row);
+    },
+
+    logMeasurement: function(data, sourceMode, changed, prevStatus, prevConsecutive) {
+      if (!this.conf.measurementLogEnabled) return;
+
+      var file = require("Storage").open("sleepstream.measure.csv", "a");
+      if (!file.getLength()) {
+        file.write(
+          "processed_at_ms,sample_ts_ms,movement,bpm,source_mode,charging,temp_c,status,consecutive," +
+          "changed,prev_status,prev_consecutive,asleep_since_ms,awake_since_ms,next_sequence,connected\n"
+        );
+      }
+
+      var movement = data.movement;
+      if (movement === undefined) movement = "";
+      var bpm = data.bpm;
+      if (bpm === undefined) bpm = "";
+
+      var row = [
+        Date.now(),
+        data.timestamp || "",
+        movement,
+        bpm,
+        sourceMode,
+        Bangle.isCharging() ? 1 : 0,
+        E.getTemperature(),
+        data.status,
+        data.consecutive,
+        changed ? 1 : 0,
+        prevStatus,
+        prevConsecutive,
+        this.info.asleepSince || 0,
+        this.info.awakeSince || 0,
+        (this.sequence + 1) >>> 0,
+        this.connected ? 1 : 0
+      ].join(",") + "\n";
+
+      file.write(row);
+    },
+
     initBle: function() {
       var service = {};
       service[SERVICE_UUID] = {};
@@ -70,33 +115,44 @@
           connectable: true,
           interval: 375
         });
+        this.logEvent("ble", "advertising_started", "service_uuid_only");
       } catch (e) {
         // Last-resort fallback for platform-specific BLE stack quirks.
-        NRF.setAdvertising({}, {
-          discoverable: true,
-          connectable: true,
-          interval: 375
-        });
+        this.logEvent("warn", "advertising_primary_failed", String(e));
+        try {
+          NRF.setAdvertising({}, {
+            discoverable: true,
+            connectable: true,
+            interval: 375
+          });
+          this.logEvent("ble", "advertising_started", "fallback_empty_payload");
+        } catch (e2) {
+          this.logEvent("error", "advertising_failed", String(e2));
+        }
       }
     },
 
     onConnect: function() {
       global.sleepstream.connected = true;
+      global.sleepstream.logEvent("ble", "connected", "central_connected");
     },
 
     onDisconnect: function() {
       global.sleepstream.connected = false;
+      global.sleepstream.logEvent("ble", "disconnected", "central_disconnected");
       setTimeout(function() {
         if (global.sleepstream) global.sleepstream.startAdvertising();
       }, 300);
     },
 
     start: function() {
+      this.logEvent("service", "start", "initializing");
       this.initBle();
       E.on("kill", this.saveRuntimeState);
       NRF.on("connect", this.onConnect);
       NRF.on("disconnect", this.onDisconnect);
       Bangle.prependListener("health", this.health);
+      this.logEvent("service", "start_complete", "health_listener_attached");
     },
 
     stop: function() {
@@ -104,6 +160,7 @@
       NRF.removeListener("connect", this.onConnect);
       NRF.removeListener("disconnect", this.onDisconnect);
       E.removeListener("kill", this.saveRuntimeState);
+      this.logEvent("service", "stop", "listeners_removed");
     },
 
     saveRuntimeState: function() {
@@ -114,6 +171,7 @@
         sequence: global.sleepstream.sequence,
         info: global.sleepstream.info
       });
+      global.sleepstream.logEvent("service", "runtime_saved", "kill_or_manual_save");
     },
 
     classifyStatus: function(data, sourceMode) {
@@ -137,13 +195,27 @@
       if (data.status === STATUS.DEEP_SLEEP && global.sleepstream.status <= STATUS.AWAKE) {
         global.sleepstream.checkIsWearing(function(isWearing, corrected) {
           if (!isWearing) corrected.status = STATUS.NOT_WORN;
-          global.sleepstream.applyState(corrected);
+          var changed = global.sleepstream.applyState(corrected);
+          global.sleepstream.logMeasurement(
+            corrected,
+            sourceMode,
+            changed,
+            corrected.prevStatus,
+            corrected.prevConsecutive
+          );
           global.sleepstream.sendUpdate(corrected, sourceMode);
         }, data);
         return;
       }
 
-      global.sleepstream.applyState(data);
+      var changed = global.sleepstream.applyState(data);
+      global.sleepstream.logMeasurement(
+        data,
+        sourceMode,
+        changed,
+        data.prevStatus,
+        data.prevConsecutive
+      );
       global.sleepstream.sendUpdate(data, sourceMode);
     },
 
@@ -169,6 +241,8 @@
     },
 
     applyState: function(data) {
+      data.prevStatus = this.status;
+      data.prevConsecutive = this.consecutive;
       this.info.lastCheck = data.timestamp;
 
       if (data.status === STATUS.LIGHT_SLEEP && this.status !== STATUS.DEEP_SLEEP && !this.info.asleepSince) {
@@ -206,6 +280,8 @@
         this.info.lastChange = data.timestamp;
         this.appendStatus(data.timestamp, data.status, data.consecutive);
       }
+
+      return changed;
     },
 
     appendStatus: function(timestamp, status, consecutive) {
@@ -225,6 +301,24 @@
         bpm: data.bpm
       });
 
+      // Also publish a JSON line over UART-compatible BLE for environments
+      // where only Nordic UART service is visible to centrals.
+      try {
+        Bluetooth.println(JSON.stringify({
+          t: "sleepstream",
+          v: 1,
+          seq: this.sequence,
+          ts: (data.timestamp / 1000) | 0,
+          status: data.status,
+          consecutive: data.consecutive,
+          source_mode: sourceMode,
+          movement: data.movement === undefined ? null : data.movement,
+          bpm: data.bpm === undefined ? null : data.bpm
+        }));
+      } catch (e0) {
+        this.logEvent("warn", "uart_json_send_failed", String(e0));
+      }
+
       var update = {};
       update[SERVICE_UUID] = {};
       update[SERVICE_UUID][UPDATE_CHAR_UUID] = { value: this.lastPayload };
@@ -233,6 +327,7 @@
         NRF.updateServices(update);
       } catch (e) {
         // Keep best-effort semantics: we do not queue or throw on notify failure.
+        this.logEvent("warn", "notify_failed", String(e));
       }
     }
   };

@@ -45,7 +45,7 @@
     return v === undefined || v === null || v === 0xFFFF ? "-" : "" + v;
   }
 
-  function readTailLines(fileName, maxChars, maxLines) {
+  function readTailLines(fileName, maxChars, maxLines, separator) {
     var file = require("Storage").open(fileName, "r");
     var len = file.getLength();
     if (!len) return [];
@@ -55,13 +55,13 @@
 
     var chunk = file.read(maxChars) || "";
     var lines = chunk.trim().split("\n");
-    if (!lines[0].includes(",")) lines.shift();
+    if (separator && lines[0] && !lines[0].includes(separator)) lines.shift();
     if (lines.length > maxLines) lines = lines.slice(lines.length - maxLines);
     return lines;
   }
 
   var page = 0;
-  var pageCount = 4;
+  var pageCount = 6;
   var tick;
 
   function drawHeader(title) {
@@ -150,11 +150,11 @@
   }
 
   function drawLogTail() {
-    drawHeader("Log tail (sleepstream.log)");
+    drawHeader("Status log tail");
     var y = 64;
     g.setFont("6x8").setFontAlign(-1, -1);
 
-    var lines = readTailLines("sleepstream.log", 400, 9);
+    var lines = readTailLines("sleepstream.log", 500, 9, ",");
     if (!lines.length) {
       g.drawString("No log lines", 4, y);
       return;
@@ -166,11 +166,47 @@
     });
   }
 
+  function drawMeasurementTail() {
+    drawHeader("Measurement log tail");
+    var y = 64;
+    g.setFont("6x8").setFontAlign(-1, -1);
+
+    var lines = readTailLines("sleepstream.measure.csv", 900, 8, ",");
+    if (!lines.length) {
+      g.drawString("No measurement rows", 4, y);
+      return;
+    }
+
+    lines.forEach(function(line) {
+      g.drawString(line.substr(0, 30), 4, y);
+      y += 11;
+    });
+  }
+
+  function drawEventTail() {
+    drawHeader("Event log tail");
+    var y = 64;
+    g.setFont("6x8").setFontAlign(-1, -1);
+
+    var lines = readTailLines("sleepstream.events.log", 700, 9, "|");
+    if (!lines.length) {
+      g.drawString("No event lines", 4, y);
+      return;
+    }
+
+    lines.forEach(function(line) {
+      g.drawString(line.substr(0, 30), 4, y);
+      y += 11;
+    });
+  }
+
   function drawPage() {
     if (page === 0) drawRuntime();
     else if (page === 1) drawPacket();
     else if (page === 2) drawConfig();
-    else drawLogTail();
+    else if (page === 3) drawLogTail();
+    else if (page === 4) drawMeasurementTail();
+    else drawEventTail();
 
     g.reset().setFont("6x8").setFontAlign(1, 1)
       .drawString("tap/swipe  " + (page + 1) + "/" + pageCount, 173, 173);

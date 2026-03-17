@@ -23,4 +23,7 @@ Bangle.js 2 runtime files for sleep-state detection and BLE publishing.
 ## Data flow
 
 Inputs: health movement/bpm, charging state, temperature/HRM wear checks, settings JSON.
-Outputs: BLE notifications, optional local status persistence.
+Outputs: BLE notifications and local logs:
+- sleepstream.log: compact state-change log (timestamp step,status,consecutive)
+- sleepstream.measure.csv: per-recheck raw measurements + inferred state row
+- sleepstream.events.log: service/connection/error event log
