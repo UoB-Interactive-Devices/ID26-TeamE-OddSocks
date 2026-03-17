@@ -1,7 +1,7 @@
 # ID26-TeamE-OddSocks
 
 ![IMG_2583](https://github.com/user-attachments/assets/00eba297-fa2c-44b7-a1e0-ba4bf17f50f6)
-
+TA: Wenda Zhao
 
 Edit: https://www.overleaf.com/6848587321rwxbrrkczbwr#0b7221
 
@@ -33,7 +33,7 @@ Ethan Rogers
 
 # Abstract
 
-Sleep quality is a foundational, yet often neglected aspect of wellbeing, compromised by evening distractions and dysregulated wind-down routines. Poor sleeping habits can lead to negative impacts on daily productivity, happiness, and overall health. There is a world of technology aimed at increasing sleep quality, but an undexplored dimension of empowering people to take control of their sleep through lucid dreaming.
+Sleep quality is a foundational, yet often neglected aspect of wellbeing, compromised by evening distractions and dysregulated wind-down routines. Poor sleeping habits can lead to negative impacts on daily productivity, happiness, and overall health. There is a world of technology aimed at increasing sleep quality, but an underexplored dimension of empowering people to take control of their sleep through lucid dreaming.
 
 This paper presents the exploration and development of a multisensory dream-enhancement system in the form factor of a traditional dream catcher, designed to support a lucid dreaming experience. Lucid dreaming offers the potential to optimise the value of every hour of the day, enabling an individual’s creativity to run wild, or even use the hours of the night to continue working while sleeping. We will validate the success of this device by REM tests and user feedback.
 
@@ -53,6 +53,8 @@ The device is intended to be attached to a wall near the heardboard of a bed or 
 - Dreem headband - EEG based sleep tracking, uses audio during specific stages of sleep cycles to encourage REM - based on [research](https://www.sciencedirect.com/science/article/pii/S1389945725003739)
 
 - [Dodow sleep aid](https://livlab.care/en-gb/collections/sleep-relaxation/products/dodow) - Projects rhythmic lights to help with sleep onset
+
+- Dormio (Dream incubation rather than lucid dreaming) - https://www.media.mit.edu/projects/sleep-creativity/overview/. https://pubmed.ncbi.nlm.nih.gov/32480292/
 
 - https://dl.acm.org/doi/10.1145/3643834.3661562 - A design-research paper arguing that dreams can be treated as a material for interaction design. It explores how designers might responsibly build “dream technologies” (tools, prompts, and interventions) to shape and reflect on dream experiences, and discusses ethical concerns and opportunities for reflective practice.
 
@@ -219,19 +221,14 @@ Social - Same settings / environment for people in the same room / bed and diffe
 
 Technological - Will the device settings be conversational, triggered on the device, triggered by ongoing monitoring, or controled by an associated app?
 
-
 Hygienic - Liquid for scents could get mouldy over time.
 
 Physical - Will the user be able to reach the device to turn on. Will the liquid be contained, what if it shakes? Moving parts will create noise.
 
 Activity - Sleeping (Wake up times, changing schedules etc.)
 
-Early Feedback:
+Early Feedback and Considerations:
 -
-WRITE HERE...
-
-# Considerations:
-
 Based on the contextual analysis and prototype testing we identified important considerations:
 
 
@@ -244,6 +241,28 @@ Technological context - The user will turn it on from a built in switch, and set
 Physical context - Ensure the liquid for scent doesn't leak. Ambient noise (fans). Ambient light.
 
 Activity context - Encourage users to turn device off when they wake up, can be connected to the ring so it autmatically turns off when wristband removed.
+
+# Further prototypes:
+
+Scent
+-
+
+Insert here...
+
+Light
+-
+
+Insert here...
+
+Sound
+-
+
+Insert here...
+
+Haptics
+-
+
+Insert here...
 
 # Risks:
 
