@@ -1,0 +1,4 @@
+# File summary:
+# Python dependencies for the sleepstream receiver daemon.
+
+bleak>=0.22.0

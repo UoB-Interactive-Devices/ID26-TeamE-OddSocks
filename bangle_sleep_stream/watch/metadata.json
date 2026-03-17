@@ -1,0 +1,18 @@
+{
+  "id": "sleepstream",
+  "name": "Sleep Stream",
+  "version": "0.01",
+  "description": "Sleep state detection and BLE streaming for Bangle.js 2",
+  "type": "app",
+  "src": "sleepstream.app.js",
+  "supports": ["BANGLEJS2"],
+  "storage": [
+    { "name": "sleepstream.app.js", "url": "sleepstream.app.js" },
+    { "name": "sleepstream.boot.js", "url": "sleepstream.boot.js" },
+    { "name": "sleepstream.lib.js", "url": "sleepstream.lib.js" },
+    { "name": "sleepstream.settings.js", "url": "sleepstream.settings.js" }
+  ],
+  "data": [
+    { "name": "sleepstream.json" }
+  ]
+}
