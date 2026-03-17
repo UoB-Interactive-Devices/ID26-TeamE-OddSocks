@@ -6,7 +6,7 @@
 // - auto-recovers advertising/listeners across disconnects and reloads
 
 (function() {
-  var lib = require("sleepstream");
+  var lib = require("sleepstream.js");
   var STATUS = lib.STATUS;
   var CONSECUTIVE = lib.CONSECUTIVE;
 
@@ -55,7 +55,6 @@
       };
 
       NRF.setServices(service, {
-        advertise: [SERVICE_UUID],
         uart: false
       });
 
@@ -64,14 +63,21 @@
 
     startAdvertising: function() {
       if (!this.conf.advertiseWhenDisconnected) return;
-      NRF.setAdvertising({}, {
-        discoverable: true,
-        connectable: true,
-        scannable: true,
-        showName: true,
-        name: this.conf.deviceNamePrefix,
-        interval: 375
-      });
+      try {
+        // Keep advertising payload minimal to avoid DATA_SIZE errors.
+        NRF.setAdvertising([SERVICE_UUID], {
+          discoverable: true,
+          connectable: true,
+          interval: 375
+        });
+      } catch (e) {
+        // Last-resort fallback for platform-specific BLE stack quirks.
+        NRF.setAdvertising({}, {
+          discoverable: true,
+          connectable: true,
+          interval: 375
+        });
+      }
     },
 
     onConnect: function() {

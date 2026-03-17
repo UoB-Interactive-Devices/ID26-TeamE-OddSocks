@@ -4,7 +4,7 @@
 // It can be launched manually or from an app menu and writes values used by sleepstream.boot.js.
 
 (function(back) {
-  var lib = require("sleepstream");
+  var lib = require("sleepstream.js");
   var settings = lib.loadSettings();
 
   function save() {

@@ -7,7 +7,7 @@
 // - tail of the local status log
 
 (function() {
-  var lib = require("sleepstream");
+  var lib = require("sleepstream.js");
 
   function statusLabel(v) {
     return ["unknown", "not_worn", "awake", "light", "deep"][v] || "?";

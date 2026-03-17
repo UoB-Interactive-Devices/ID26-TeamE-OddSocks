@@ -7,6 +7,7 @@ Bangle.js 2 runtime files for sleep-state detection and BLE publishing.
 ## Files and fit
 
 - sleepstream.boot.js: Background service started at boot. Owns state machine, BLE service, health listeners.
+- sleepstream.js: Canonical module file resolved by require("sleepstream") at runtime.
 - sleepstream.lib.js: Shared helper functions for settings and payload packing.
 - sleepstream.settings.js: On-watch settings menu for thresholds and BLE behavior.
 - sleepstream.app.js: Interactive debug screen with live runtime, packet decode, config snapshot, and log tail views.

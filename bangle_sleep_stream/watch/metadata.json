@@ -9,6 +9,7 @@
   "storage": [
     { "name": "sleepstream.app.js", "url": "sleepstream.app.js" },
     { "name": "sleepstream.boot.js", "url": "sleepstream.boot.js" },
+    { "name": "sleepstream.js", "url": "sleepstream.js" },
     { "name": "sleepstream.lib.js", "url": "sleepstream.lib.js" },
     { "name": "sleepstream.settings.js", "url": "sleepstream.settings.js" }
   ],

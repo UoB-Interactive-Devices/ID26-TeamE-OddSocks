@@ -129,7 +129,10 @@ class ReceiverDaemon:
         best_rssi = -999
         for dev, adv in discovered.values():
             name = dev.name or adv.local_name or ""
-            if not name.startswith(self.name_prefix):
+            uuids = [u.lower() for u in (adv.service_uuids or [])]
+            has_service = SERVICE_UUID.lower() in uuids
+            has_name = name.startswith(self.name_prefix)
+            if not (has_name or has_service):
                 continue
             rssi = getattr(adv, "rssi", None)
             if rssi is None:
