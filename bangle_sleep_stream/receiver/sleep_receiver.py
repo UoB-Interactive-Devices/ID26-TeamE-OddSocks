@@ -1,10 +1,7 @@
 """
-File summary:
-Linux asyncio BLE receiver daemon for Sleep Stream.
-- Discovers and connects to the Bangle.js 2 watch.
-- Subscribes to sleep update notifications.
-- Decodes protocol v1 packets and persists rows to SQLite.
-- Reconnects automatically with backoff and no manual intervention.
+BLE receiver daemon for Sleep Stream.
+Connects to Bangle.js 2 via UART, decodes JSON sleep updates, persists to SQLite.
+Reconnects automatically with backoff.
 """
 
 from __future__ import annotations
@@ -16,60 +13,18 @@ import logging
 from logging.handlers import RotatingFileHandler
 import signal
 import sqlite3
-import struct
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from bleak import BleakClient, BleakScanner
-from bleak.exc import BleakCharacteristicNotFoundError
 
-SERVICE_UUID = "12345678-1234-5678-1234-56789abc0000"
-UPDATE_CHAR_UUID = "12345678-1234-5678-1234-56789abc0001"
 UART_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 UART_TX_CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 
 
-@dataclass
-class SleepPacket:
-    version: int
-    status: int
-    consecutive: int
-    source_mode: int
-    sequence: int
-    watch_ts_sec: int
-    movement: Optional[int]
-    bpm: Optional[int]
-
-
-def decode_packet(data: bytearray) -> SleepPacket:
-    if len(data) != 16:
-        raise ValueError(f"invalid packet length {len(data)} (expected 16)")
-
-    version, status, consecutive, source_mode, sequence, watch_ts, movement, bpm = struct.unpack(
-        "<BBBBIIHH", data
-    )
-    if version != 1:
-        raise ValueError(f"unsupported protocol version {version}")
-
-    movement_val = None if movement == 0xFFFF else movement
-    bpm_val = None if bpm == 0xFFFF else bpm
-
-    return SleepPacket(
-        version=version,
-        status=status,
-        consecutive=consecutive,
-        source_mode=source_mode,
-        sequence=sequence,
-        watch_ts_sec=watch_ts,
-        movement=movement_val,
-        bpm=bpm_val,
-    )
-
-
 class ReceiverDaemon:
-    """Owns BLE lifecycle, packet handling, and database persistence."""
+    """BLE lifecycle, packet handling, and database persistence."""
 
     def __init__(
         self,
@@ -77,15 +32,11 @@ class ReceiverDaemon:
         db_path: Path,
         scan_timeout: float,
         connect_timeout: float,
-        settle_seconds: float,
-        scan_debug: bool,
     ) -> None:
         self.name_prefix = name_prefix
         self.db_path = db_path
         self.scan_timeout = scan_timeout
         self.connect_timeout = connect_timeout
-        self.settle_seconds = settle_seconds
-        self.scan_debug = scan_debug
 
         self.log = logging.getLogger("sleep_receiver")
         self.stop_event = asyncio.Event()
@@ -94,7 +45,6 @@ class ReceiverDaemon:
         self.backoff_seconds = 2.0
         self.max_backoff_seconds = 30.0
         self.last_sequence: Optional[int] = None
-        self.last_watch_ts_sec: Optional[int] = None
         self.uart_buffer = ""
 
         self.conn = sqlite3.connect(self.db_path)
@@ -135,51 +85,17 @@ class ReceiverDaemon:
 
         best = None
         best_rssi = -999
-        fallback = None
-        fallback_rssi = -999
-        fallback_prefixes = ("BangleSleep", "Bangle.js", "Bangle")
         for dev, adv in discovered.values():
             name = dev.name or adv.local_name or ""
-            uuids = [u.lower() for u in (adv.service_uuids or [])]
-            has_service = SERVICE_UUID.lower() in uuids
-            has_name = name.startswith(self.name_prefix)
-
-            rssi = getattr(adv, "rssi", None)
-            if rssi is None:
-                rssi = getattr(dev, "rssi", -999)
-            if rssi is None:
-                rssi = -999
-
-            if self.scan_debug:
-                self.log.info(
-                    "scan-debug: name=%r addr=%s rssi=%s uuids=%s",
-                    name,
-                    dev.address,
-                    rssi,
-                    uuids,
-                )
-
-            if any(name.startswith(prefix) for prefix in fallback_prefixes):
-                if rssi > fallback_rssi:
-                    fallback = dev
-                    fallback_rssi = rssi
-
-            if not (has_name or has_service):
+            if not name.startswith(self.name_prefix):
                 continue
+            rssi = getattr(adv, "rssi", None) or getattr(dev, "rssi", -999) or -999
             if rssi > best_rssi:
                 best = dev
                 best_rssi = rssi
 
         if best:
             self.log.info("scan: selected %s (%s) rssi=%s", best.name, best.address, best_rssi)
-        elif fallback:
-            self.log.warning(
-                "scan: no service/name-prefix match; using fallback candidate %s (%s) rssi=%s",
-                fallback.name,
-                fallback.address,
-                fallback_rssi,
-            )
-            best = fallback
         else:
             self.log.warning("scan: no matching device found")
         return best
@@ -188,48 +104,16 @@ class ReceiverDaemon:
         self.log.warning("ble: disconnected")
         self.disconnect_event.set()
 
-    def _log_gatt_map(self, client: BleakClient) -> None:
-        try:
-            services = client.services
-            if not services:
-                self.log.warning("gatt: no services cached on client")
-                return
-            for service in services:
-                self.log.info("gatt: service %s", service.uuid)
-                for ch in service.characteristics:
-                    props = ",".join(ch.properties) if ch.properties else ""
-                    self.log.info("gatt:   char %s props=%s", ch.uuid, props)
-        except Exception as exc:
-            self.log.warning("gatt: failed to dump services: %s", exc)
-
-    def _persist_packet(self, pkt: SleepPacket, peer: str) -> None:
+    def _persist(self, pkt: dict, peer: str) -> None:
         recv_ts_ms = int(time.time() * 1000)
+        seq = pkt.get("seq", 0)
 
-        if self.last_sequence is not None:
-            if pkt.sequence == self.last_sequence + 1:
-                pass
-            elif pkt.sequence == self.last_sequence:
-                self.log.warning(
-                    "sequence repeated: last=%s current=%s (watch_ts advanced: %s -> %s)",
-                    self.last_sequence,
-                    pkt.sequence,
-                    self.last_watch_ts_sec,
-                    pkt.watch_ts_sec,
-                )
-            elif pkt.sequence < self.last_sequence:
-                self.log.warning(
-                    "sequence regressed: last=%s current=%s (watch/service restart likely)",
-                    self.last_sequence,
-                    pkt.sequence,
-                )
+        if self.last_sequence is not None and seq != self.last_sequence + 1:
+            if seq <= self.last_sequence:
+                self.log.warning("sequence regressed/repeated: last=%s current=%s", self.last_sequence, seq)
             else:
-                self.log.warning(
-                    "sequence gap: last=%s current=%s",
-                    self.last_sequence,
-                    pkt.sequence,
-                )
-        self.last_sequence = pkt.sequence
-        self.last_watch_ts_sec = pkt.watch_ts_sec
+                self.log.warning("sequence gap: last=%s current=%s", self.last_sequence, seq)
+        self.last_sequence = seq
 
         try:
             self.conn.execute(
@@ -241,35 +125,19 @@ class ReceiverDaemon:
                 """,
                 (
                     recv_ts_ms,
-                    pkt.watch_ts_sec,
-                    pkt.sequence,
-                    pkt.status,
-                    pkt.consecutive,
-                    pkt.source_mode,
-                    pkt.movement,
-                    pkt.bpm,
+                    int(pkt.get("ts", 0)),
+                    seq,
+                    int(pkt.get("status", 0)),
+                    int(pkt.get("consecutive", 0)),
+                    int(pkt.get("source_mode", 0)),
+                    pkt.get("movement"),
+                    pkt.get("bpm"),
                     peer,
                 ),
             )
             self.conn.commit()
         except sqlite3.IntegrityError:
-            self.log.info("db: duplicate packet seq=%s ts=%s", pkt.sequence, pkt.watch_ts_sec)
-
-    def handle_packet(self, data: bytearray, peer: str, from_read: bool = False) -> None:
-        pkt = decode_packet(data)
-        source = "read" if from_read else "notify"
-        self.log.info(
-            "%s: seq=%d status=%d consecutive=%d source=%d ts=%d bpm=%s movement=%s",
-            source,
-            pkt.sequence,
-            pkt.status,
-            pkt.consecutive,
-            pkt.source_mode,
-            pkt.watch_ts_sec,
-            pkt.bpm,
-            pkt.movement,
-        )
-        self._persist_packet(pkt, peer)
+            self.log.info("db: duplicate packet seq=%s", seq)
 
     def handle_uart_line(self, line: str, peer: str) -> None:
         line = line.strip()
@@ -279,114 +147,62 @@ class ReceiverDaemon:
             obj = json.loads(line)
         except Exception:
             return
-
         if obj.get("t") != "sleepstream":
             return
 
-        pkt = SleepPacket(
-            version=int(obj.get("v", 1)),
-            status=int(obj.get("status", 0)),
-            consecutive=int(obj.get("consecutive", 0)),
-            source_mode=int(obj.get("source_mode", 0)),
-            sequence=int(obj.get("seq", 0)),
-            watch_ts_sec=int(obj.get("ts", 0)),
-            movement=obj.get("movement", None),
-            bpm=obj.get("bpm", None),
-        )
-
         self.log.info(
-            "uart-notify: seq=%d status=%d consecutive=%d source=%d ts=%d bpm=%s movement=%s",
-            pkt.sequence,
-            pkt.status,
-            pkt.consecutive,
-            pkt.source_mode,
-            pkt.watch_ts_sec,
-            pkt.bpm,
-            pkt.movement,
+            "uart: seq=%d status=%d consecutive=%d source=%d ts=%d bpm=%s movement=%s",
+            obj.get("seq", 0), obj.get("status", 0), obj.get("consecutive", 0),
+            obj.get("source_mode", 0), obj.get("ts", 0), obj.get("bpm"), obj.get("movement"),
         )
-        self._persist_packet(pkt, peer)
+        self._persist(obj, peer)
 
     def _drain_uart_buffer(self, peer: str) -> None:
-        # UART notify payloads may arrive fragmented, concatenated, or with\
-        # varying line endings depending on BLE stack behavior.
-        while True:
-            if not self.uart_buffer:
-                return
-
-            # Preferred fast path: parse complete newline-terminated records.
-            line_endings = [i for i in (self.uart_buffer.find("\n"), self.uart_buffer.find("\r")) if i >= 0]
+        while self.uart_buffer:
+            idx_n = self.uart_buffer.find("\n")
+            idx_r = self.uart_buffer.find("\r")
+            line_endings = [i for i in (idx_n, idx_r) if i >= 0]
             if line_endings:
                 split_idx = min(line_endings)
                 line = self.uart_buffer[:split_idx]
-                self.uart_buffer = self.uart_buffer[split_idx + 1 :]
+                self.uart_buffer = self.uart_buffer[split_idx + 1:]
                 self.handle_uart_line(line, peer)
                 continue
 
-            # Fallback: parse one JSON object from start, even without newline.
             chunk = self.uart_buffer.lstrip()
             if not chunk.startswith("{"):
                 self.uart_buffer = ""
                 return
-
             try:
-                obj, end_idx = json.JSONDecoder().raw_decode(chunk)
+                _obj, end_idx = json.JSONDecoder().raw_decode(chunk)
             except json.JSONDecodeError:
-                # Incomplete JSON object: wait for more notify data.
                 return
-
             self.uart_buffer = chunk[end_idx:]
-            if obj.get("t") == "sleepstream":
-                self.handle_uart_line(json.dumps(obj), peer)
+            self.handle_uart_line(json.dumps(_obj), peer)
 
     async def connect_and_stream(self, device) -> None:
         self.disconnect_event.clear()
         self.log.info("ble: connecting to %s", device.address)
 
         async with BleakClient(
-            device,
-            timeout=self.connect_timeout,
-            disconnected_callback=self.on_disconnect,
+            device, timeout=self.connect_timeout, disconnected_callback=self.on_disconnect,
         ) as client:
-            await asyncio.sleep(self.settle_seconds)
+            await asyncio.sleep(1.0)
+            self.uart_buffer = ""
 
-            try:
-                initial = await client.read_gatt_char(UPDATE_CHAR_UUID)
-                self.handle_packet(initial, device.address, from_read=True)
+            def uart_callback(_sender: int, data: bytearray) -> None:
+                try:
+                    self.uart_buffer += bytes(data).decode("utf-8", errors="ignore")
+                    self._drain_uart_buffer(device.address)
+                except Exception as exc:
+                    self.log.exception("uart handling error: %s", exc)
 
-                def notify_callback(_sender: int, data: bytearray) -> None:
-                    try:
-                        self.handle_packet(data, device.address, from_read=False)
-                    except Exception as exc:  # keep stream alive on decode/db errors
-                        self.log.exception("notify handling error: %s", exc)
-
-                await client.start_notify(UPDATE_CHAR_UUID, notify_callback)
-                self.log.info("ble: subscribed to custom sleep characteristic")
-                active_char = UPDATE_CHAR_UUID
-            except BleakCharacteristicNotFoundError:
-                self.log.warning(
-                    "ble: custom characteristic missing, falling back to UART notify (%s)",
-                    UART_TX_CHAR_UUID,
-                )
-                self._log_gatt_map(client)
-
-                self.uart_buffer = ""
-
-                def uart_notify_callback(_sender: int, data: bytearray) -> None:
-                    try:
-                        chunk = bytes(data).decode("utf-8", errors="ignore")
-                        self.uart_buffer += chunk
-                        self._drain_uart_buffer(device.address)
-                    except Exception as exc:
-                        self.log.exception("uart notify handling error: %s", exc)
-
-                await client.start_notify(UART_TX_CHAR_UUID, uart_notify_callback)
-                self.log.info("ble: subscribed to UART fallback notifications")
-                active_char = UART_TX_CHAR_UUID
-
+            await client.start_notify(UART_TX_CHAR_UUID, uart_callback)
+            self.log.info("ble: subscribed to UART notifications")
             await self.disconnect_event.wait()
 
             try:
-                await client.stop_notify(active_char)
+                await client.stop_notify(UART_TX_CHAR_UUID)
             except Exception:
                 pass
 
@@ -398,7 +214,6 @@ class ReceiverDaemon:
                     await asyncio.sleep(self.backoff_seconds)
                     self.backoff_seconds = min(self.backoff_seconds * 1.5, self.max_backoff_seconds)
                     continue
-
                 await self.connect_and_stream(device)
                 self.backoff_seconds = 2.0
             except asyncio.CancelledError:
@@ -409,44 +224,35 @@ class ReceiverDaemon:
                 self.backoff_seconds = min(self.backoff_seconds * 1.5, self.max_backoff_seconds)
 
 
-def configure_logging(log_path: Optional[Path], debug: bool) -> None:
-    handlers = [logging.StreamHandler()]
-
-    if log_path:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(RotatingFileHandler(log_path, maxBytes=1_000_000, backupCount=5))
-
-    logging.basicConfig(
-        level=logging.DEBUG if debug else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-        handlers=handlers,
-    )
-
-
-def parse_args() -> argparse.Namespace:
+def main() -> None:
     parser = argparse.ArgumentParser(description="Sleep Stream BLE receiver")
-    parser.add_argument("--name-prefix", default="BangleSleep", help="Watch BLE name prefix")
+    parser.add_argument("--name-prefix", default="Bangle", help="Watch BLE name prefix")
     parser.add_argument("--db-path", default="./sleepstream.db", help="SQLite path")
     parser.add_argument("--log-path", default="./sleepstream.log", help="Log file path")
     parser.add_argument("--scan-timeout", type=float, default=10.0, help="BLE scan timeout seconds")
     parser.add_argument("--connect-timeout", type=float, default=25.0, help="BLE connect timeout seconds")
-    parser.add_argument("--settle-seconds", type=float, default=1.0, help="Delay after connect before IO")
-    parser.add_argument("--scan-debug", action="store_true", help="Log every discovered BLE advertisement")
     parser.add_argument("--debug", action="store_true", help="Enable debug logs")
-    return parser.parse_args()
+    args = parser.parse_args()
 
+    handlers = [logging.StreamHandler()]
+    if args.log_path:
+        Path(args.log_path).parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(RotatingFileHandler(args.log_path, maxBytes=1_000_000, backupCount=5))
 
-async def async_main(args: argparse.Namespace) -> None:
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        handlers=handlers,
+    )
+
     daemon = ReceiverDaemon(
         name_prefix=args.name_prefix,
         db_path=Path(args.db_path),
         scan_timeout=args.scan_timeout,
         connect_timeout=args.connect_timeout,
-        settle_seconds=args.settle_seconds,
-        scan_debug=args.scan_debug,
     )
 
-    loop = asyncio.get_running_loop()
+    loop = asyncio.new_event_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, daemon.request_stop)
@@ -454,15 +260,9 @@ async def async_main(args: argparse.Namespace) -> None:
             pass
 
     try:
-        await daemon.run_forever()
+        loop.run_until_complete(daemon.run_forever())
     finally:
         daemon.close()
-
-
-def main() -> None:
-    args = parse_args()
-    configure_logging(Path(args.log_path) if args.log_path else None, args.debug)
-    asyncio.run(async_main(args))
 
 
 if __name__ == "__main__":
