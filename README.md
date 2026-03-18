@@ -3,9 +3,9 @@
 ![IMG_2583](https://github.com/user-attachments/assets/00eba297-fa2c-44b7-a1e0-ba4bf17f50f6)
 TA: Wenda Zhao
 
-Edit: https://www.overleaf.com/6848587321rwxbrrkczbwr#0b7221
+Edit: [https://www.overleaf.com/6848587321rwxbrrkczbwr#0b7221](https://www.overleaf.com/3237486297xmshtsskrwvp#ca6851)
 
-View: https://www.overleaf.com/read/hpxfyqzkxcvp#a09834
+View: [https://www.overleaf.com/read/hpxfyqzkxcvp#a09834](https://www.overleaf.com/read/skjmmssxwczc#0dd90f)
 
 Survey 1 (Editable): https://forms.cloud.microsoft/Pages/DesignPageV2.aspx?subpage=design&FormId=MH_ksn3NTkql2rGM8aQVGwd8QlN-FuhIiwM0mrZjnLpURjAxRlUyQUFQU1dKV0hUREtQSEdPVzNGTy4u&Token=0b30b989468140febc809699458bc82b
 
