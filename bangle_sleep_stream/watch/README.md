@@ -11,6 +11,7 @@ Bangle.js 2 runtime files for sleep-state detection and BLE publishing.
 - sleepstream.lib.js: Shared helper functions for settings and payload packing.
 - sleepstream.settings.js: On-watch settings menu for thresholds and BLE behavior.
 - sleepstream.app.js: Interactive debug screen with live runtime, packet decode, config snapshot, and log tail views.
+	Runtime page includes a self-test trigger (BTN2 or bottom-left touch) that sends an immediate test update packet.
 - metadata.json: App metadata for packaging/loader integration.
 
 ## Control flow

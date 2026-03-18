@@ -94,6 +94,7 @@ class ReceiverDaemon:
         self.backoff_seconds = 2.0
         self.max_backoff_seconds = 30.0
         self.last_sequence: Optional[int] = None
+        self.last_watch_ts_sec: Optional[int] = None
         self.uart_buffer = ""
 
         self.conn = sqlite3.connect(self.db_path)
@@ -204,13 +205,31 @@ class ReceiverDaemon:
     def _persist_packet(self, pkt: SleepPacket, peer: str) -> None:
         recv_ts_ms = int(time.time() * 1000)
 
-        if self.last_sequence is not None and pkt.sequence != self.last_sequence + 1:
-            self.log.warning(
-                "sequence gap: last=%s current=%s",
-                self.last_sequence,
-                pkt.sequence,
-            )
+        if self.last_sequence is not None:
+            if pkt.sequence == self.last_sequence + 1:
+                pass
+            elif pkt.sequence == self.last_sequence:
+                self.log.warning(
+                    "sequence repeated: last=%s current=%s (watch_ts advanced: %s -> %s)",
+                    self.last_sequence,
+                    pkt.sequence,
+                    self.last_watch_ts_sec,
+                    pkt.watch_ts_sec,
+                )
+            elif pkt.sequence < self.last_sequence:
+                self.log.warning(
+                    "sequence regressed: last=%s current=%s (watch/service restart likely)",
+                    self.last_sequence,
+                    pkt.sequence,
+                )
+            else:
+                self.log.warning(
+                    "sequence gap: last=%s current=%s",
+                    self.last_sequence,
+                    pkt.sequence,
+                )
         self.last_sequence = pkt.sequence
+        self.last_watch_ts_sec = pkt.watch_ts_sec
 
         try:
             self.conn.execute(
@@ -287,6 +306,38 @@ class ReceiverDaemon:
         )
         self._persist_packet(pkt, peer)
 
+    def _drain_uart_buffer(self, peer: str) -> None:
+        # UART notify payloads may arrive fragmented, concatenated, or with\
+        # varying line endings depending on BLE stack behavior.
+        while True:
+            if not self.uart_buffer:
+                return
+
+            # Preferred fast path: parse complete newline-terminated records.
+            line_endings = [i for i in (self.uart_buffer.find("\n"), self.uart_buffer.find("\r")) if i >= 0]
+            if line_endings:
+                split_idx = min(line_endings)
+                line = self.uart_buffer[:split_idx]
+                self.uart_buffer = self.uart_buffer[split_idx + 1 :]
+                self.handle_uart_line(line, peer)
+                continue
+
+            # Fallback: parse one JSON object from start, even without newline.
+            chunk = self.uart_buffer.lstrip()
+            if not chunk.startswith("{"):
+                self.uart_buffer = ""
+                return
+
+            try:
+                obj, end_idx = json.JSONDecoder().raw_decode(chunk)
+            except json.JSONDecodeError:
+                # Incomplete JSON object: wait for more notify data.
+                return
+
+            self.uart_buffer = chunk[end_idx:]
+            if obj.get("t") == "sleepstream":
+                self.handle_uart_line(json.dumps(obj), peer)
+
     async def connect_and_stream(self, device) -> None:
         self.disconnect_event.clear()
         self.log.info("ble: connecting to %s", device.address)
@@ -324,9 +375,7 @@ class ReceiverDaemon:
                     try:
                         chunk = bytes(data).decode("utf-8", errors="ignore")
                         self.uart_buffer += chunk
-                        while "\n" in self.uart_buffer:
-                            line, self.uart_buffer = self.uart_buffer.split("\n", 1)
-                            self.handle_uart_line(line, device.address)
+                        self._drain_uart_buffer(device.address)
                     except Exception as exc:
                         self.log.exception("uart notify handling error: %s", exc)
 

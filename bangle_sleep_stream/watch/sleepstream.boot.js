@@ -12,6 +12,7 @@
 
   var SERVICE_UUID = "12345678-1234-5678-1234-56789abc0000";
   var UPDATE_CHAR_UUID = "12345678-1234-5678-1234-56789abc0001";
+  var RUNTIME_FILE = "sleepstream.runtime.json";
 
   var conf = lib.loadSettings();
   if (!conf.enabled) {
@@ -146,6 +147,7 @@
     },
 
     start: function() {
+      this.restoreRuntimeState();
       this.logEvent("service", "start", "initializing");
       this.initBle();
       E.on("kill", this.saveRuntimeState);
@@ -165,13 +167,39 @@
 
     saveRuntimeState: function() {
       if (!global.sleepstream) return;
-      require("Storage").writeJSON("sleepstream.runtime.json", {
+      require("Storage").writeJSON(RUNTIME_FILE, {
         status: global.sleepstream.status,
         consecutive: global.sleepstream.consecutive,
         sequence: global.sleepstream.sequence,
         info: global.sleepstream.info
       });
       global.sleepstream.logEvent("service", "runtime_saved", "kill_or_manual_save");
+    },
+
+    restoreRuntimeState: function() {
+      var saved = require("Storage").readJSON(RUNTIME_FILE, true) || {};
+      if (typeof saved.status === "number") this.status = saved.status | 0;
+      if (typeof saved.consecutive === "number") this.consecutive = saved.consecutive | 0;
+      if (typeof saved.sequence === "number") this.sequence = saved.sequence >>> 0;
+
+      if (saved.info && typeof saved.info === "object") {
+        this.info.lastCheck = saved.info.lastCheck | 0;
+        this.info.lastChange = saved.info.lastChange | 0;
+        this.info.asleepSince = saved.info.asleepSince | 0;
+        this.info.awakeSince = saved.info.awakeSince | 0;
+      }
+
+      this.lastPayload = lib.packUpdate({
+        status: this.status,
+        consecutive: this.consecutive,
+        sourceMode: 0,
+        sequence: this.sequence,
+        timestampSec: ((this.info.lastCheck || Date.now()) / 1000) | 0,
+        movement: 0xFFFF,
+        bpm: 0xFFFF
+      });
+
+      this.logEvent("service", "runtime_restored", "seq=" + this.sequence);
     },
 
     classifyStatus: function(data, sourceMode) {
@@ -329,6 +357,15 @@
         // Keep best-effort semantics: we do not queue or throw on notify failure.
         this.logEvent("warn", "notify_failed", String(e));
       }
+
+      // Persist after each update so sequence remains monotonic even if the
+      // service is reloaded without a full power-cycle.
+      require("Storage").writeJSON(RUNTIME_FILE, {
+        status: this.status,
+        consecutive: this.consecutive,
+        sequence: this.sequence,
+        info: this.info
+      });
     }
   };
 
