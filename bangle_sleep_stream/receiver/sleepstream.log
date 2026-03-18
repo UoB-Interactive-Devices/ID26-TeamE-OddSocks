@@ -3030,3 +3030,4 @@ bleak.exc.BleakError: Bluetooth device is turned off
 2026-03-18 16:33:38,326 INFO sleep_receiver ble: connecting to F64DEABE-F4AD-3CC0-0573-408759FB0400
 2026-03-18 16:33:39,965 INFO sleep_receiver ble: subscribed to UART notifications
 2026-03-18 16:39:23,460 INFO sleep_receiver uart: seq=1 status=2 consecutive=0 source=0 ts=1773851400 bpm=70 movement=223
+2026-03-18 16:44:54,668 WARNING sleep_receiver ble: disconnected
