@@ -3031,3 +3031,78 @@ bleak.exc.BleakError: Bluetooth device is turned off
 2026-03-18 16:33:39,965 INFO sleep_receiver ble: subscribed to UART notifications
 2026-03-18 16:39:23,460 INFO sleep_receiver uart: seq=1 status=2 consecutive=0 source=0 ts=1773851400 bpm=70 movement=223
 2026-03-18 16:44:54,668 WARNING sleep_receiver ble: disconnected
+2026-03-19 14:19:08,802 INFO sleep_receiver scan: looking for name prefix 'Bangle'
+2026-03-19 14:19:19,122 INFO sleep_receiver scan: selected Bangle.js ac0a (F64DEABE-F4AD-3CC0-0573-408759FB0400) rssi=-48
+2026-03-19 14:19:19,125 INFO sleep_receiver ble: connecting to F64DEABE-F4AD-3CC0-0573-408759FB0400
+2026-03-19 14:19:20,747 INFO sleep_receiver ble: subscribed to UART notifications
+2026-03-19 14:19:23,950 INFO sleep_receiver uart: seq=6 status=3 consecutive=1 source=0 ts=1773930004 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:15,573 INFO sleep_receiver uart: seq=7 status=3 consecutive=1 source=0 ts=1773930056 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:40,761 INFO sleep_receiver uart: seq=8 status=3 consecutive=1 source=0 ts=1773930081 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:43,058 INFO sleep_receiver uart: seq=9 status=3 consecutive=1 source=0 ts=1773930083 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:43,610 INFO sleep_receiver uart: seq=10 status=3 consecutive=1 source=0 ts=1773930084 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:44,031 INFO sleep_receiver uart: seq=11 status=3 consecutive=1 source=0 ts=1773930084 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:44,429 INFO sleep_receiver uart: seq=12 status=3 consecutive=1 source=0 ts=1773930085 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:44,609 INFO sleep_receiver uart: seq=13 status=3 consecutive=1 source=0 ts=1773930085 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:44,812 INFO sleep_receiver uart: seq=14 status=3 consecutive=1 source=0 ts=1773930085 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:46,482 INFO sleep_receiver uart: seq=15 status=3 consecutive=1 source=0 ts=1773930087 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:46,925 INFO sleep_receiver uart: seq=16 status=3 consecutive=1 source=0 ts=1773930087 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:47,348 INFO sleep_receiver uart: seq=17 status=3 consecutive=1 source=0 ts=1773930088 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:47,602 INFO sleep_receiver uart: seq=18 status=3 consecutive=1 source=0 ts=1773930088 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:47,828 INFO sleep_receiver uart: seq=19 status=3 consecutive=1 source=0 ts=1773930088 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:48,096 INFO sleep_receiver uart: seq=20 status=3 consecutive=1 source=0 ts=1773930088 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:48,372 INFO sleep_receiver uart: seq=21 status=3 consecutive=1 source=0 ts=1773930089 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:48,485 INFO sleep_receiver uart: seq=22 status=3 consecutive=1 source=0 ts=1773930089 bpm=72 movement=111 sdhr=None
+2026-03-19 14:20:48,672 INFO sleep_receiver uart: seq=23 status=3 consecutive=1 source=0 ts=1773930089 bpm=72 movement=111 sdhr=None
+2026-03-19 14:21:59,225 INFO sleep_receiver uart: seq=24 status=3 consecutive=1 source=0 ts=1773930160 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:00,172 INFO sleep_receiver uart: seq=25 status=3 consecutive=1 source=0 ts=1773930160 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:00,711 INFO sleep_receiver uart: seq=26 status=3 consecutive=1 source=0 ts=1773930161 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:01,170 INFO sleep_receiver uart: seq=27 status=3 consecutive=1 source=0 ts=1773930161 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:01,621 INFO sleep_receiver uart: seq=28 status=3 consecutive=1 source=0 ts=1773930162 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:02,032 INFO sleep_receiver uart: seq=29 status=3 consecutive=1 source=0 ts=1773930162 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:02,436 INFO sleep_receiver uart: seq=30 status=3 consecutive=1 source=0 ts=1773930163 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:03,051 INFO sleep_receiver uart: seq=31 status=3 consecutive=1 source=0 ts=1773930163 bpm=72 movement=111 sdhr=None
+2026-03-19 14:22:03,398 INFO sleep_receiver uart: seq=32 status=3 consecutive=1 source=0 ts=1773930164 bpm=72 movement=111 sdhr=None
+2026-03-19 14:25:40,425 WARNING sleep_receiver ble: disconnected
+2026-03-19 14:26:30,912 INFO sleep_receiver scan: looking for name prefix 'Bangle'
+2026-03-19 14:26:41,024 INFO sleep_receiver scan: selected Bangle.js ac0a (F64DEABE-F4AD-3CC0-0573-408759FB0400) rssi=-50
+2026-03-19 14:26:41,025 INFO sleep_receiver ble: connecting to F64DEABE-F4AD-3CC0-0573-408759FB0400
+2026-03-19 14:26:42,604 INFO sleep_receiver ble: subscribed to UART notifications
+2026-03-19 14:26:46,510 INFO sleep_receiver uart: seq=33 status=3 consecutive=1 source=0 ts=1773930447 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:51,088 INFO sleep_receiver uart: seq=34 status=3 consecutive=1 source=0 ts=1773930451 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:51,762 INFO sleep_receiver uart: seq=35 status=3 consecutive=1 source=0 ts=1773930452 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:52,196 INFO sleep_receiver uart: seq=36 status=3 consecutive=1 source=0 ts=1773930453 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:52,615 INFO sleep_receiver uart: seq=37 status=3 consecutive=1 source=0 ts=1773930453 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:52,975 INFO sleep_receiver uart: seq=38 status=3 consecutive=1 source=0 ts=1773930453 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:53,283 INFO sleep_receiver uart: seq=39 status=3 consecutive=1 source=0 ts=1773930454 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:53,462 INFO sleep_receiver uart: seq=40 status=3 consecutive=1 source=0 ts=1773930454 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:54,056 INFO sleep_receiver uart: seq=41 status=3 consecutive=1 source=0 ts=1773930454 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:54,252 INFO sleep_receiver uart: seq=42 status=3 consecutive=1 source=0 ts=1773930455 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:54,454 INFO sleep_receiver uart: seq=43 status=3 consecutive=1 source=0 ts=1773930455 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:54,647 INFO sleep_receiver uart: seq=44 status=3 consecutive=1 source=0 ts=1773930455 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:54,822 INFO sleep_receiver uart: seq=45 status=3 consecutive=1 source=0 ts=1773930455 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:55,017 INFO sleep_receiver uart: seq=46 status=3 consecutive=1 source=0 ts=1773930455 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:55,198 INFO sleep_receiver uart: seq=47 status=3 consecutive=1 source=0 ts=1773930456 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:55,391 INFO sleep_receiver uart: seq=48 status=3 consecutive=1 source=0 ts=1773930456 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:55,555 INFO sleep_receiver uart: seq=49 status=3 consecutive=1 source=0 ts=1773930456 bpm=72 movement=111 sdhr=None
+2026-03-19 14:26:55,743 INFO sleep_receiver uart: seq=50 status=3 consecutive=1 source=0 ts=1773930456 bpm=72 movement=111 sdhr=None
+2026-03-19 14:29:19,423 INFO sleep_receiver uart: seq=51 status=2 consecutive=0 source=0 ts=1773930000 bpm=94 movement=311 sdhr=None
+2026-03-19 14:30:01,974 WARNING sleep_receiver ble: disconnected
+2026-03-19 14:30:42,440 INFO sleep_receiver scan: looking for name prefix 'Bangle'
+2026-03-19 14:30:52,558 INFO sleep_receiver scan: selected Bangle.js ac0a (F64DEABE-F4AD-3CC0-0573-408759FB0400) rssi=-53
+2026-03-19 14:30:52,560 INFO sleep_receiver ble: connecting to F64DEABE-F4AD-3CC0-0573-408759FB0400
+2026-03-19 14:30:54,445 INFO sleep_receiver ble: subscribed to UART notifications
+2026-03-19 14:31:05,920 INFO sleep_receiver uart: seq=52 status=2 consecutive=1 source=0 ts=1773930706 bpm=72 movement=111 sdhr=None
+2026-03-19 14:31:07,905 INFO sleep_receiver uart: seq=53 status=2 consecutive=1 source=0 ts=1773930708 bpm=72 movement=111 sdhr=None
+2026-03-19 14:31:08,334 INFO sleep_receiver uart: seq=54 status=2 consecutive=1 source=0 ts=1773930709 bpm=72 movement=111 sdhr=None
+2026-03-19 14:31:08,749 INFO sleep_receiver uart: seq=55 status=2 consecutive=1 source=0 ts=1773930709 bpm=72 movement=111 sdhr=None
+2026-03-19 14:31:09,257 INFO sleep_receiver uart: seq=56 status=2 consecutive=1 source=0 ts=1773930710 bpm=72 movement=111 sdhr=None
+2026-03-19 14:31:11,381 INFO sleep_receiver uart: seq=57 status=2 consecutive=1 source=0 ts=1773930712 bpm=72 movement=111 sdhr=None
+2026-03-19 14:32:48,065 WARNING sleep_receiver ble: disconnected
+2026-03-19 14:35:06,446 INFO sleep_receiver scan: looking for name prefix 'Bangle'
+2026-03-19 14:35:16,588 WARNING sleep_receiver scan: no matching device found
+2026-03-19 14:35:18,593 INFO sleep_receiver scan: looking for name prefix 'Bangle'
+2026-03-19 14:35:28,657 INFO sleep_receiver scan: selected Bangle.js ac0a (F64DEABE-F4AD-3CC0-0573-408759FB0400) rssi=-59
+2026-03-19 14:35:28,659 INFO sleep_receiver ble: connecting to F64DEABE-F4AD-3CC0-0573-408759FB0400
+2026-03-19 14:35:30,481 INFO sleep_receiver ble: subscribed to UART notifications
+2026-03-19 14:39:19,436 INFO sleep_receiver uart: seq=58 status=3 consecutive=0 source=1 ts=1773930600 bpm=79 movement=267 sdhr=3.3
+2026-03-19 14:49:19,442 INFO sleep_receiver uart: seq=59 status=3 consecutive=0 source=1 ts=1773931200 bpm=83 movement=374 sdhr=6.7

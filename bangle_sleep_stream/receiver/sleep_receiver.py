@@ -65,11 +65,17 @@ class ReceiverDaemon:
               source_mode INTEGER NOT NULL,
               movement INTEGER,
               bpm INTEGER,
+              sdhr REAL,
               peer TEXT,
               UNIQUE(sequence, watch_ts_sec)
             )
             """
         )
+        # Non-destructive migration for existing databases
+        try:
+            self.conn.execute("ALTER TABLE sleep_updates ADD COLUMN sdhr REAL")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         self.conn.commit()
 
     def close(self) -> None:
@@ -120,8 +126,8 @@ class ReceiverDaemon:
                 """
                 INSERT INTO sleep_updates (
                   recv_ts_ms, watch_ts_sec, sequence, status, consecutive,
-                  source_mode, movement, bpm, peer
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  source_mode, movement, bpm, sdhr, peer
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     recv_ts_ms,
@@ -132,6 +138,7 @@ class ReceiverDaemon:
                     int(pkt.get("source_mode", 0)),
                     pkt.get("movement"),
                     pkt.get("bpm"),
+                    pkt.get("sdhr"),
                     peer,
                 ),
             )
@@ -151,9 +158,10 @@ class ReceiverDaemon:
             return
 
         self.log.info(
-            "uart: seq=%d status=%d consecutive=%d source=%d ts=%d bpm=%s movement=%s",
+            "uart: seq=%d status=%d consecutive=%d source=%d ts=%d bpm=%s movement=%s sdhr=%s",
             obj.get("seq", 0), obj.get("status", 0), obj.get("consecutive", 0),
             obj.get("source_mode", 0), obj.get("ts", 0), obj.get("bpm"), obj.get("movement"),
+            obj.get("sdhr"),
         )
         self._persist(obj, peer)
 

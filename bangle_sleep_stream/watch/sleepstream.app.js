@@ -1,6 +1,9 @@
 // Debug app for Sleep Stream on Bangle.js 2.
-// Two pages: live runtime state and status log tail.
-// Tap or swipe to switch pages. Touch bottom-left on page 1 for self-test.
+// Three pages: live runtime state, monitoring features, and status log tail.
+// Tap or swipe to switch pages.
+// Page 1: bottom-left = self-test, bottom-right = toggle monitoring.
+// Page 2: live epoch features (only when monitoring).
+// Page 3: status log tail.
 
 (function () {
   var lib = require("sleepstream.js");
@@ -12,7 +15,11 @@
   var FOOTER_Y = 160;
 
   function statusLabel(v) {
-    return ["unknown", "not_worn", "awake", "light", "deep"][v] || "?";
+    return ["unknown", "not_worn", "awake", "light", "deep", "rem"][v] || "?";
+  }
+
+  function stageChar(v) {
+    return ["?", "-", "W", "L", "D", "R"][v] || "?";
   }
 
   function consecutiveLabel(v) {
@@ -62,10 +69,11 @@
       .drawLine(0, FOOTER_Y, 175, FOOTER_Y);
     if (hint) g.drawString(fitText(hint, CONTENT_WIDTH), LEFT_X, 162);
     g.setFontAlign(1, 1)
-      .drawString("tap/swipe " + (page + 1) + "/2", RIGHT_X, 173);
+      .drawString("tap/swipe " + (page + 1) + "/3", RIGHT_X, 173);
   }
 
   var page = 0;
+  var PAGE_COUNT = 4;
 
   function drawRuntime() {
     drawHeader("Runtime / BLE");
@@ -75,17 +83,44 @@
       drawFooter("");
       return;
     }
+    var monStr = rt.monitoring ? "ON" : "off";
     drawLines([
       "conn: " + (!!rt.connected),
       "status: " + statusLabel(rt.status | 0),
       "consec: " + consecutiveLabel(rt.consecutive | 0),
       "seq: " + (rt.sequence | 0),
+      "monitor: " + monStr,
       "lastchk: " + shortDateTime((rt.info || {}).lastCheck),
       "lastchg: " + shortDateTime((rt.info || {}).lastChange),
-      "asleep: " + shortTime((rt.info || {}).asleepSince),
-      "awake: " + shortTime((rt.info || {}).awakeSince)
+      "asleep: " + shortTime((rt.info || {}).asleepSince)
     ], CONTENT_TOP_Y);
-    drawFooter("BL touch: self-test");
+    drawFooter("Swipe to pg 4 for Controls");
+  }
+
+  function drawFeatures() {
+    drawHeader("Epoch Features");
+    var rt = global.sleepstream;
+    if (!rt || !rt.monitoring) {
+      drawLines(["Monitoring not active", "Start from page 1 (BR)"], CONTENT_TOP_Y);
+      drawFooter("");
+      return;
+    }
+    var f = rt.lastFeatures || {};
+    var ctx = rt.nightCtx;
+    var lines = [
+      "stage: " + stageChar(rt.currentStage),
+      "meanHR: " + (f.meanHR ? f.meanHR.toFixed(1) : "-"),
+      "sdHR: " + (f.sdHR ? f.sdHR.toFixed(1) : "-"),
+      "activity: " + (f.activity !== undefined ? f.activity.toFixed(4) : "-"),
+      "hrCount: " + (f.hrCount || 0)
+    ];
+    if (ctx) {
+      lines.push("hrP20: " + (ctx.hrP20() ? ctx.hrP20().toFixed(0) : "-"));
+      lines.push("hrP50: " + (ctx.hrP50() ? ctx.hrP50().toFixed(0) : "-"));
+      lines.push("minsSleep: " + (ctx.minutesSinceSleep(Date.now()) | 0));
+    }
+    drawLines(lines, CONTENT_TOP_Y);
+    drawFooter("");
   }
 
   function drawLogTail() {
@@ -113,9 +148,35 @@
     drawFooter("");
   }
 
+  function drawControls() {
+    var rt = global.sleepstream;
+    g.reset().clearRect(0, 24, 175, 175);
+    g.setFont("6x8", 2).setFontAlign(0,0);
+    
+    // Top Half: Toggle Monitor (Blue if active, Green if inactive)
+    var isMon = rt && rt.monitoring;
+    g.setColor(isMon ? "#0000ff" : "#00ff00");
+    g.fillRect(0, 24, 175, 96);
+    g.setColor(isMon ? "#ffffff" : "#000000");
+    g.drawString(isMon ? "STOP MONITOR" : "START MONITOR", 88, 60);
+
+    // Bottom Half: Run Test (Red)
+    g.setColor("#ff0000");
+    g.fillRect(0, 98, 175, 175);
+    g.setColor("#ffffff");
+    g.drawString("SEND TEST", 88, 136);
+
+    // Header overlap cleanup
+    g.reset().setColor((g.theme && g.theme.bg) ? g.theme.bg : "#000000").fillRect(0,0,175,23);
+    g.setColor((g.theme && g.theme.fg) ? g.theme.fg : "#ffffff").setFont("6x8", 1).setFontAlign(-1,-1);
+    g.drawString("Controls (Swipe to exit)", 4, 8);
+  }
+
   function drawPage() {
     if (page === 0) drawRuntime();
-    else drawLogTail();
+    else if (page === 1) drawFeatures();
+    else if (page === 2) drawLogTail();
+    else drawControls();
   }
 
   function runSelfTest() {
@@ -133,6 +194,19 @@
     Bangle.buzz(60);
   }
 
+  function toggleMonitoring() {
+    if (!global.sleepstream) {
+      Bangle.buzz(120);
+      return;
+    }
+    if (global.sleepstream.monitoring) {
+      global.sleepstream.stopMonitoring();
+    } else {
+      global.sleepstream.startMonitoring();
+    }
+    drawPage();
+  }
+
   Bangle.loadWidgets();
   g.clear(true);
   Bangle.drawWidgets();
@@ -140,24 +214,31 @@
   Bangle.setUI({
     mode: "custom",
     back: load,
-    touch: function (_b, xy) {
-      if (page === 0 && xy && xy.x < 90 && xy.y > FOOTER_Y) {
-        runSelfTest();
-        drawPage();
-        return;
+    touch: function (btn, xy) {
+      if (page === 3 && xy) {
+        // Toggle if touched top half
+        if (xy.y >= 24 && xy.y < 98) {
+          toggleMonitoring();
+          return;
+        }
+        // Test if touched bottom half
+        if (xy.y >= 98) {
+          runSelfTest();
+          drawPage();
+          return;
+        }
       }
-      page = (page + 1) % 2;
+      page = (page + 1) % PAGE_COUNT;
       drawPage();
     },
     swipe: function (h) {
-      if (h < 0) page = (page + 1) % 2;
-      else if (h > 0) page = (page + 2 - 1) % 2;
+      if (h < 0) page = (page + 1) % PAGE_COUNT;
+      else if (h > 0) page = (page + PAGE_COUNT - 1) % PAGE_COUNT;
       drawPage();
     }
   });
 
   // Auto-refresh every 5s, but only while the screen is on.
-  // When LCD is off (e.g. during sleep) the interval is cleared — zero battery cost.
   var tick;
   function startRefresh() {
     if (!tick) tick = setInterval(drawPage, 5000);
