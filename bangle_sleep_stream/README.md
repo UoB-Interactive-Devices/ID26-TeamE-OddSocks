@@ -6,20 +6,22 @@ Sleep classification runs on-watch using the same algorithm as the [sleeplog](ht
 
 ## How it works
 
-1. Watch health event fires every ~10 minutes.
-2. Boot service classifies sleep state (unknown / not_worn / awake / light / deep / **rem**).
+1. Boot service natively listens for health events and evaluates accelerometer/HRM.
+2. Sleep state is classified (unknown / not_worn / awake / light / deep / **rem**).
 3. JSON update is sent over BLE UART: `{"t":"sleepstream","v":1,"seq":1,"ts":1773846600,"status":5,"consecutive":0,"source_mode":1,"movement":595,"bpm":56,"sdhr":4.2}`
+   - Standard mode: Sent every ~10 minutes upon native health event.
+   - Monitoring mode: Sent **every 60 seconds** for real-time triggers.
 4. Receiver decodes and stores in SQLite.
 
 ### Sleep monitoring mode
 
-For REM detection, the watch runs a continuous monitoring mode that must be **manually activated** from the debug app (bottom-right touch on page 1):
+For REM detection, the watch runs a continuous monitoring mode that must be **manually activated** from the debug app (swipe right to **Page 4 Controls screen**, and tap **START MONITOR**):
 
 - Enables HRM sensor and accelerometer listeners.
 - Processes 60-second epochs computing: activity (accel MAD), mean HR, HR standard deviation (sdHR).
 - Classifies each epoch using a rule-based state machine considering HR percentiles, REM latency (~60 min), and temporal smoothing.
 - Logs all epochs to on-device storage (`sleepstream.epochs.log`) for post-hoc analysis — this data persists even if BLE disconnects or the receiver crashes.
-- When the 10-minute health event fires, it uses the classifier's current stage instead of the simple threshold classifier.
+- **Pushes BLE UART JSON updates immediately** after each epoch to enable real-time triggers natively upon sleep stage changes.
 
 **Battery note:** Continuous HRM increases battery drain. The watch should last an 8-hour sleep session, but expect reduced daytime battery compared to the non-monitoring mode.
 
@@ -30,7 +32,7 @@ For REM detection, the watch runs a continuous monitoring mode that must be **ma
 | `sleepstream.boot.js` | Background service — health listener, sleep state machine, monitoring pipeline, BLE send |
 | `sleepstream.js` | Shared module — constants, settings, feature extraction, classifier, night context |
 | `sleepstream.settings.js` | On-watch settings menu for thresholds, epoch length, REM latency |
-| `sleepstream.app.js` | Debug app — live status, epoch features, monitoring toggle, log tail (3 pages) |
+| `sleepstream.app.js` | Debug app — live status, epoch features, log tail, explicit top/bottom Control screen (4 pages) |
 
 ## Receiver
 
