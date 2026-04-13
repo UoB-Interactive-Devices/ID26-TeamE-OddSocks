@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from withings_import import load_withings_sleep
+from withings_import import load_withings_hr, load_withings_nights_summary, load_withings_sleep
 
 
 STAGE_ORDER = ["awake", "light", "deep", "rem"]
@@ -616,6 +616,112 @@ def compare_with_withings(
     return comparison
 
 
+def compare_with_withings_hr(
+    night_df: pd.DataFrame,
+    withings_hr_df: pd.DataFrame,
+    outdir: Path,
+    night_id: str,
+    dpi: int,
+) -> Optional[dict]:
+    ours = night_df[["watch_dt", "bpm"]].copy().dropna(subset=["bpm"])
+    ours["timestamp_local"] = ours["watch_dt"].dt.floor("min")
+    ours = ours.groupby("timestamp_local", as_index=False)["bpm"].median()
+    ours = ours.rename(columns={"bpm": "ours_bpm"})
+
+    window_start = ours["timestamp_local"].min() - pd.Timedelta(minutes=5)
+    window_end = ours["timestamp_local"].max() + pd.Timedelta(minutes=5)
+    w = withings_hr_df[
+        (withings_hr_df["timestamp_local"] >= window_start)
+        & (withings_hr_df["timestamp_local"] <= window_end)
+    ].copy()
+    if w.empty:
+        return None
+
+    w["timestamp_local"] = pd.to_datetime(w["timestamp_local"]).dt.floor("min")
+    w = w.groupby("timestamp_local", as_index=False)["hr_bpm"].median()
+
+    merged = pd.merge(ours, w, on="timestamp_local", how="inner")
+    if len(merged) < 15:
+        return None
+
+    diff = merged["ours_bpm"] - merged["hr_bpm"]
+    mae = float(np.abs(diff).mean())
+    bias = float(diff.mean())
+    rmse = float(np.sqrt((diff * diff).mean()))
+    corr = float(merged[["ours_bpm", "hr_bpm"]].corr().iloc[0, 1])
+
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+    axes[0].plot(merged["timestamp_local"], merged["ours_bpm"], label="SleepStream bpm", color="#d62828")
+    axes[0].plot(merged["timestamp_local"], merged["hr_bpm"], label="Withings bpm", color="#264653", alpha=0.8)
+    axes[0].set_ylabel("BPM")
+    axes[0].set_title("Heart Rate Comparison")
+    axes[0].legend(frameon=False)
+    axes[0].grid(True, alpha=0.25)
+
+    axes[1].plot(merged["timestamp_local"], diff, color="#1d3557")
+    axes[1].axhline(0, color="#999999", linestyle="--", linewidth=0.9)
+    axes[1].set_ylabel("Delta BPM")
+    axes[1].set_title("SleepStream - Withings")
+    axes[1].grid(True, alpha=0.25)
+    _style_time_axis(axes[0])
+    _style_time_axis(axes[1])
+    axes[1].set_xlabel("Local Time")
+    fig.suptitle(f"Withings HR Comparison - {night_id}")
+    fig.tight_layout()
+    fig.savefig(outdir / "withings_hr_overlay.png", dpi=dpi)
+    plt.close(fig)
+
+    metrics = {
+        "night_id": night_id,
+        "n_overlap_points": int(len(merged)),
+        "hr_mae": mae,
+        "hr_rmse": rmse,
+        "hr_bias": bias,
+        "hr_corr": corr,
+    }
+    with open(outdir / "withings_hr_metrics.json", "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
+    merged.to_csv(outdir / "withings_hr_aligned.csv", index=False)
+    return metrics
+
+
+def compare_with_withings_sleep_summary(
+    summary: NightSummary,
+    withings_summary_df: pd.DataFrame,
+    outdir: Path,
+) -> Optional[dict]:
+    ours_start = pd.Timestamp(summary.start_local)
+    ours_end = pd.Timestamp(summary.end_local)
+    ours_mid = ours_start + (ours_end - ours_start) / 2
+
+    ws = withings_summary_df.copy()
+    ws["mid"] = ws["from_local"] + (ws["to_local"] - ws["from_local"]) / 2
+    ws["mid_dist_sec"] = (ws["mid"] - ours_mid).abs().dt.total_seconds()
+    ws = ws.sort_values("mid_dist_sec")
+    if ws.empty:
+        return None
+
+    best = ws.iloc[0]
+    if float(best["mid_dist_sec"]) > 12 * 3600:
+        return None
+
+    out = {
+        "withings_from_local": pd.Timestamp(best["from_local"]).isoformat(sep=" "),
+        "withings_to_local": pd.Timestamp(best["to_local"]).isoformat(sep=" "),
+        "withings_duration_min": float(best.get("duration_min", np.nan)),
+        "withings_light_min": float(best.get("light_min", np.nan)),
+        "withings_deep_min": float(best.get("deep_min", np.nan)),
+        "withings_rem_min": float(best.get("rem_min", np.nan)),
+        "withings_awake_min": float(best.get("awake_min", np.nan)),
+        "withings_avg_hr": float(best.get("avg_hr", np.nan)),
+        "withings_min_hr": float(best.get("min_hr", np.nan)),
+        "withings_max_hr": float(best.get("max_hr", np.nan)),
+    }
+    with open(outdir / "withings_sleep_summary_match.json", "w", encoding="utf-8") as f:
+        json.dump(out, f, indent=2)
+    return out
+
+
 def plot_cross_night_trends(summary_df: pd.DataFrame, outpath: Path, dpi: int) -> None:
     if summary_df.empty:
         return
@@ -674,6 +780,8 @@ def generate_for_night(
     outdir: Path,
     dpi: int,
     withings_df: Optional[pd.DataFrame] = None,
+    withings_hr_df: Optional[pd.DataFrame] = None,
+    withings_nights_df: Optional[pd.DataFrame] = None,
 ) -> dict:
     outdir.mkdir(parents=True, exist_ok=True)
     episodes = get_episodes(ana_session_df, summary.epoch_sec)
@@ -703,6 +811,30 @@ def generate_for_night(
                     "withings_kappa": comparison["cohen_kappa"],
                 }
             )
+
+    if withings_hr_df is not None:
+        hr_comparison = compare_with_withings_hr(
+            ana_session_df,
+            withings_hr_df,
+            outdir=outdir,
+            night_id=summary.night_id,
+            dpi=dpi,
+        )
+        if hr_comparison is not None:
+            metrics.update(
+                {
+                    "withings_hr_points": hr_comparison["n_overlap_points"],
+                    "withings_hr_mae": hr_comparison["hr_mae"],
+                    "withings_hr_rmse": hr_comparison["hr_rmse"],
+                    "withings_hr_bias": hr_comparison["hr_bias"],
+                    "withings_hr_corr": hr_comparison["hr_corr"],
+                }
+            )
+
+    if withings_nights_df is not None:
+        night_match = compare_with_withings_sleep_summary(summary, withings_nights_df, outdir=outdir)
+        if night_match is not None:
+            metrics.update(night_match)
 
     with open(outdir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
@@ -738,7 +870,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--session-gap-min", type=int, default=120, help="Gap threshold in minutes for splitting sessions")
     p.add_argument("--min-session-min", type=int, default=30, help="Ignore sessions shorter than this")
     p.add_argument("--tz", choices=["local", "utc"], default="local", help="Timezone alignment for plots and metrics")
-    p.add_argument("--withings", default=None, help="Optional Withings CSV export path")
+    p.add_argument(
+        "--withings",
+        default=None,
+        help=(
+            "Optional Withings export path. Can be a CSV file or an export "
+            "directory containing raw_tracker_sleep-state.csv or sleep.csv"
+        ),
+    )
     p.add_argument("--dpi", type=int, default=150, help="PNG output DPI")
     return p
 
@@ -769,8 +908,38 @@ def main() -> None:
         )
 
     withings_df = None
+    withings_hr_df = None
+    withings_nights_df = None
     if args.withings:
-        withings_df = load_withings_sleep(Path(args.withings), tz_mode=args.tz)
+        withings_path = Path(args.withings).expanduser().resolve()
+        if withings_path.is_dir():
+            candidates = [
+                withings_path / "raw_tracker_sleep-state.csv",
+                withings_path / "sleep.csv",
+            ]
+            found = next((p for p in candidates if p.exists()), None)
+            if found is None:
+                raise FileNotFoundError(
+                    "No supported Withings sleep CSV found in directory. "
+                    "Expected one of: raw_tracker_sleep-state.csv, sleep.csv"
+                )
+            withings_df = load_withings_sleep(found, tz_mode=args.tz)
+
+            hr_path = withings_path / "raw_hr_hr.csv"
+            if hr_path.exists():
+                try:
+                    withings_hr_df = load_withings_hr(hr_path, tz_mode=args.tz)
+                except Exception as exc:
+                    print(f"Warning: failed to load Withings HR file: {hr_path} ({exc})")
+
+            sleep_summary_path = withings_path / "sleep.csv"
+            if sleep_summary_path.exists():
+                try:
+                    withings_nights_df = load_withings_nights_summary(sleep_summary_path, tz_mode=args.tz)
+                except Exception as exc:
+                    print(f"Warning: failed to load Withings sleep summary: {sleep_summary_path} ({exc})")
+        else:
+            withings_df = load_withings_sleep(withings_path, tz_mode=args.tz)
 
     all_metrics = []
     for _, srow in selected.iterrows():
@@ -799,6 +968,8 @@ def main() -> None:
             outdir=night_out,
             dpi=args.dpi,
             withings_df=withings_df,
+            withings_hr_df=withings_hr_df,
+            withings_nights_df=withings_nights_df,
         )
         all_metrics.append(metrics)
 
