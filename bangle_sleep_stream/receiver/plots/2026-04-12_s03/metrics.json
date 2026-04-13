@@ -30,6 +30,7 @@
   "withings_overlap_min": 426,
   "withings_accuracy": 0.41784037558685444,
   "withings_kappa": -0.06185297605885781,
+  "withings_compare_mode": "strict",
   "withings_hr_points": 58,
   "withings_hr_mae": 6.181034482758621,
   "withings_hr_rmse": 8.633585182497956,

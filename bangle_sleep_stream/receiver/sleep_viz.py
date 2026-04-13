@@ -596,6 +596,20 @@ def build_aligned_compare_df(
     if ours.empty or w_stage.empty:
         return None
 
+    # Guardrail: restrict Withings data to a neighborhood around this night.
+    # Without this, passing a whole export directory can create a months-long
+    # timeline and enormous HTML files.
+    ours_min_raw = ours["timestamp_local"].min()
+    ours_max_raw = ours["timestamp_local"].max()
+    guard_start = ours_min_raw - pd.Timedelta(hours=18)
+    guard_end = ours_max_raw + pd.Timedelta(hours=18)
+    w_stage = w_stage[
+        (w_stage["timestamp_local"] >= guard_start)
+        & (w_stage["timestamp_local"] <= guard_end)
+    ].copy()
+    if w_stage.empty:
+        return None
+
     ours_min, ours_max = ours["timestamp_local"].min(), ours["timestamp_local"].max()
     with_min, with_max = w_stage["timestamp_local"].min(), w_stage["timestamp_local"].max()
     overlap_start = max(ours_min, with_min)
@@ -617,6 +631,10 @@ def build_aligned_compare_df(
 
     if withings_hr_df is not None:
         w_hr = _prepare_withings_hr_table(withings_hr_df)
+        w_hr = w_hr[
+            (w_hr["timestamp_local"] >= guard_start)
+            & (w_hr["timestamp_local"] <= guard_end)
+        ].copy()
         aligned = aligned.merge(w_hr, on="timestamp_local", how="left")
     else:
         aligned["hr_bpm"] = np.nan
