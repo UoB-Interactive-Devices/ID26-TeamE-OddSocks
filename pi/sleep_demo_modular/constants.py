@@ -36,7 +36,8 @@ MAX_BPM = 180
 # -------------------- Pure Data settings --------------------
 # Launch command and UDP target for soundscape control messages.
 PUREDATA_ENABLED = True
-PUREDATA_COMMAND = ["pd", "-nogui", "-open", "/home/pi/windscape.pd"]
+# Open the patch created in this module folder.
+PUREDATA_COMMAND = ["pd", "-nogui", "-open", "pi/sleep_demo_modular/windscape.pd"]
 PUREDATA_WORKDIR = ""
 PUREDATA_UDP_HOST = "127.0.0.1"
 PUREDATA_UDP_PORT = 9000
