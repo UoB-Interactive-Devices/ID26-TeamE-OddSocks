@@ -18,12 +18,13 @@ def clamp(v: float, lo: float, hi: float) -> float:
 
 
 class App:
-    def __init__(self, enable_ble: bool, log: logging.Logger):
+    def __init__(self, enable_ble: bool, dry_run: bool, log: logging.Logger):
         self.log = log
         self.enable_ble = enable_ble
+        self.dry_run = dry_run
 
         self.stop_event = asyncio.Event()
-        self.outputs = Outputs()
+        self.outputs = Outputs(dry_run=dry_run, log=log.getChild("outputs"))
         self.ble = BleListener(self.handle_packet, log.getChild("ble"))
 
         self.bpm = DEFAULT_BPM
@@ -72,7 +73,7 @@ class App:
                 pass
 
         await self.outputs.stop_all()
-        self.outputs.pd.stop()
+        self.outputs.stop_pd()
         self.current_index = -1
         self.log.info("Demo stopped")
 
@@ -92,7 +93,7 @@ class App:
             if self.running:
                 self.running = False
                 await self.outputs.stop_all()
-                self.outputs.pd.stop()
+                self.outputs.stop_pd()
                 self.current_index = -1
                 self.log.info("Demo complete")
 
@@ -164,6 +165,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Minimal modular sleep demo")
     parser.add_argument("--start", action="store_true", help="Start demo immediately")
     parser.add_argument("--no-ble", action="store_true", help="Disable BLE listener")
+    parser.add_argument("--dry-run", action="store_true", help="Skip GPIO and Pure Data actions")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args()
 
@@ -176,7 +178,7 @@ async def async_main():
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
-    app = App(enable_ble=not args.no_ble, log=logging.getLogger("sleep_demo_modular"))
+    app = App(enable_ble=not args.no_ble, dry_run=args.dry_run, log=logging.getLogger("sleep_demo_modular"))
     await app.run(start_now=args.start)
 
 

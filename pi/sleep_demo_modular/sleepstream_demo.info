@@ -1,0 +1,11 @@
+{
+  "id": "sleepstream_demo",
+  "name": "Sleep Demo Ctrl",
+  "shortName": "Demo Ctrl",
+  "version": "0.01",
+  "description": "Minimal Bangle controller for Pi sleep demo",
+  "type": "app",
+  "src": "sleepstream_demo.app.js",
+  "supports": ["BANGLEJS2"],
+  "tags": "tool"
+}
