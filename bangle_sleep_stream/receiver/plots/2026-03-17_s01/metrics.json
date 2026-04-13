@@ -26,5 +26,15 @@
   "lag_sec_max": -43.82599997520447,
   "missing_bpm": 0,
   "missing_sdhr": 16,
-  "missing_movement": 0
+  "missing_movement": 0,
+  "withings_from_local": "2026-03-18 02:53:00",
+  "withings_to_local": "2026-03-18 10:00:00",
+  "withings_duration_min": 427.0,
+  "withings_light_min": 263.0,
+  "withings_deep_min": 155.0,
+  "withings_rem_min": 0.0,
+  "withings_awake_min": 9.0,
+  "withings_avg_hr": 70.0,
+  "withings_min_hr": 56.0,
+  "withings_max_hr": 97.0
 }

@@ -1,0 +1,12 @@
+{
+  "withings_from_local": "2026-04-13 01:39:00",
+  "withings_to_local": "2026-04-13 08:45:00",
+  "withings_duration_min": 426.0,
+  "withings_light_min": 218.0,
+  "withings_deep_min": 200.0,
+  "withings_rem_min": 0.0,
+  "withings_awake_min": 8.0,
+  "withings_avg_hr": 63.0,
+  "withings_min_hr": 44.0,
+  "withings_max_hr": 94.0
+}

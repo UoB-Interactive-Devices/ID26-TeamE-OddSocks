@@ -29,6 +29,7 @@ from withings_import import load_withings_hr, load_withings_nights_summary, load
 
 
 STAGE_ORDER = ["awake", "light", "deep", "rem"]
+STAGE_ORDER_COLLAPSED = ["awake", "light", "deep"]
 STAGE_COLORS = {
     "awake": "#e76f51",
     "light": "#2a9d8f",
@@ -39,6 +40,13 @@ STAGE_COLORS = {
 STAGE_FROM_CODE = {2: "awake", 3: "light", 4: "deep", 5: "rem"}
 SOURCE_MODE_LABEL = {0: "movement", 1: "hrm"}
 SOURCE_MODE_COLORS = {0: "#7f8c8d", 1: "#1d3557"}
+
+
+def _collapse_stage(stage: object) -> Optional[str]:
+    if stage is None or (isinstance(stage, float) and np.isnan(stage)):
+        return None
+    s = str(stage)
+    return "light" if s == "rem" else s
 
 
 @dataclass
@@ -242,6 +250,17 @@ def _style_time_axis(ax: plt.Axes) -> None:
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(formatter)
     ax.grid(True, axis="x", alpha=0.25)
+
+
+def _write_plotly_html_with_fallback(fig, outpath: Path, include_plotlyjs: str | bool) -> None:
+    try:
+        fig.write_html(str(outpath), include_plotlyjs=include_plotlyjs)
+    except OSError as exc:
+        # Embedded Plotly JS can be large; fallback to CDN mode on low-disk errors.
+        if getattr(exc, "errno", None) == 28 and include_plotlyjs is True:
+            fig.write_html(str(outpath), include_plotlyjs="cdn")
+            return
+        raise
 
 
 def plot_night_overview(night_df: pd.DataFrame, episodes: pd.DataFrame, outpath: Path, dpi: int) -> None:
@@ -476,7 +495,11 @@ def plot_data_integrity(raw_night_df: pd.DataFrame, outpath: Path, dpi: int) -> 
     plt.close(fig)
 
 
-def save_interactive_html(night_df: pd.DataFrame, outpath: Path) -> None:
+def save_interactive_html(
+    night_df: pd.DataFrame,
+    outpath: Path,
+    include_plotlyjs: str | bool = "cdn",
+) -> None:
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 
@@ -521,7 +544,7 @@ def save_interactive_html(night_df: pd.DataFrame, outpath: Path) -> None:
         title_text="Sleep Night Interactive Timeline",
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
     )
-    fig.write_html(str(outpath), include_plotlyjs="cdn")
+    _write_plotly_html_with_fallback(fig, outpath, include_plotlyjs)
 
 
 def _kappa_from_confusion(cm: pd.DataFrame) -> float:
@@ -537,83 +560,351 @@ def _kappa_from_confusion(cm: pd.DataFrame) -> float:
     return (po - pe) / (1.0 - pe)
 
 
+def _prepare_ours_minute_table(night_df: pd.DataFrame) -> pd.DataFrame:
+    ours = night_df[["watch_dt", "stage_label", "bpm", "movement", "sdhr"]].copy()
+    ours["timestamp_local"] = ours["watch_dt"].dt.floor("min")
+    ours = ours.drop_duplicates(subset=["timestamp_local"], keep="last")
+    ours = ours.rename(columns={"stage_label": "ours_stage", "bpm": "ours_bpm"})
+    ours["ours_stage_collapsed"] = ours["ours_stage"].map(_collapse_stage)
+    return ours[["timestamp_local", "ours_stage", "ours_stage_collapsed", "ours_bpm", "movement", "sdhr"]]
+
+
+def _prepare_withings_stage_table(withings_df: pd.DataFrame) -> pd.DataFrame:
+    w = withings_df.copy()
+    w["timestamp_local"] = pd.to_datetime(w["timestamp_local"]).dt.floor("min")
+    w = w.drop_duplicates(subset=["timestamp_local"], keep="last")
+    w = w.rename(columns={"stage_label": "withings_stage"})
+    w["withings_stage_collapsed"] = w["withings_stage"].map(_collapse_stage)
+    return w[["timestamp_local", "withings_stage", "withings_stage_collapsed"]]
+
+
+def _prepare_withings_hr_table(withings_hr_df: pd.DataFrame) -> pd.DataFrame:
+    w = withings_hr_df.copy()
+    w["timestamp_local"] = pd.to_datetime(w["timestamp_local"]).dt.floor("min")
+    w = w.groupby("timestamp_local", as_index=False)["hr_bpm"].median()
+    return w
+
+
+def build_aligned_compare_df(
+    night_df: pd.DataFrame,
+    withings_df: pd.DataFrame,
+    withings_hr_df: Optional[pd.DataFrame] = None,
+    window_mode: str = "overlap",
+) -> Optional[dict]:
+    ours = _prepare_ours_minute_table(night_df)
+    w_stage = _prepare_withings_stage_table(withings_df)
+    if ours.empty or w_stage.empty:
+        return None
+
+    ours_min, ours_max = ours["timestamp_local"].min(), ours["timestamp_local"].max()
+    with_min, with_max = w_stage["timestamp_local"].min(), w_stage["timestamp_local"].max()
+    overlap_start = max(ours_min, with_min)
+    overlap_end = min(ours_max, with_max)
+    if overlap_end < overlap_start:
+        return None
+
+    full_start = min(ours_min, with_min)
+    full_end = max(ours_max, with_max)
+    if window_mode == "overlap":
+        start, end = overlap_start, overlap_end
+    else:
+        start, end = full_start, full_end
+
+    idx = pd.date_range(start=start, end=end, freq="1min")
+    aligned = pd.DataFrame({"timestamp_local": idx})
+    aligned = aligned.merge(ours, on="timestamp_local", how="left")
+    aligned = aligned.merge(w_stage, on="timestamp_local", how="left")
+
+    if withings_hr_df is not None:
+        w_hr = _prepare_withings_hr_table(withings_hr_df)
+        aligned = aligned.merge(w_hr, on="timestamp_local", how="left")
+    else:
+        aligned["hr_bpm"] = np.nan
+
+    for c in ["ours_stage", "ours_stage_collapsed", "withings_stage", "withings_stage_collapsed"]:
+        aligned[c] = aligned[c].ffill(limit=2)
+
+    strict_valid = aligned["ours_stage"].notna() & aligned["withings_stage"].notna()
+    coll_valid = aligned["ours_stage_collapsed"].notna() & aligned["withings_stage_collapsed"].notna()
+    aligned["stage_match_strict"] = strict_valid & (aligned["ours_stage"] == aligned["withings_stage"])
+    aligned["stage_match_collapsed"] = coll_valid & (
+        aligned["ours_stage_collapsed"] == aligned["withings_stage_collapsed"]
+    )
+    aligned["bpm_delta"] = aligned["ours_bpm"] - aligned["hr_bpm"]
+
+    return {
+        "aligned": aligned,
+        "full_start": full_start,
+        "full_end": full_end,
+        "overlap_start": overlap_start,
+        "overlap_end": overlap_end,
+    }
+
+
+def _compute_stage_metrics(aligned: pd.DataFrame, mode: str) -> Optional[dict]:
+    if mode == "collapsed":
+        truth_col = "withings_stage_collapsed"
+        pred_col = "ours_stage_collapsed"
+        order = STAGE_ORDER_COLLAPSED
+    else:
+        truth_col = "withings_stage"
+        pred_col = "ours_stage"
+        order = STAGE_ORDER
+
+    valid = aligned[truth_col].isin(order) & aligned[pred_col].isin(order)
+    d = aligned.loc[valid, ["timestamp_local", truth_col, pred_col]].copy()
+    if len(d) < 15:
+        return None
+
+    cm = pd.crosstab(d[truth_col], d[pred_col]).reindex(index=order, columns=order, fill_value=0)
+    acc = float((d[truth_col] == d[pred_col]).mean())
+    kappa = _kappa_from_confusion(cm)
+
+    per_stage_rows = []
+    for s in order:
+        tp = float(cm.loc[s, s])
+        true_sum = float(cm.loc[s].sum())
+        pred_sum = float(cm[s].sum())
+        recall = tp / true_sum if true_sum > 0 else np.nan
+        precision = tp / pred_sum if pred_sum > 0 else np.nan
+        per_stage_rows.append(
+            {
+                "stage": s,
+                "precision": precision,
+                "recall": recall,
+                "support_true": true_sum,
+                "support_pred": pred_sum,
+            }
+        )
+
+    return {
+        "n_overlap_minutes": int(len(d)),
+        "accuracy": acc,
+        "cohen_kappa": kappa,
+        "cm": cm,
+        "per_stage": pd.DataFrame(per_stage_rows),
+        "aligned": d,
+    }
+
+
+def save_interactive_compare_html(
+    night_df: pd.DataFrame,
+    withings_df: pd.DataFrame,
+    withings_hr_df: Optional[pd.DataFrame],
+    outpath: Path,
+    window_mode: str,
+    include_plotlyjs: str | bool = "cdn",
+) -> Optional[dict]:
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    built = build_aligned_compare_df(
+        night_df,
+        withings_df,
+        withings_hr_df=withings_hr_df,
+        window_mode="full",
+    )
+    if built is None:
+        return None
+
+    d = built["aligned"].copy()
+    strict_map = {"deep": 0, "light": 1, "rem": 2, "awake": 3}
+    coll_map = {"deep": 0, "light": 1, "awake": 2}
+    d["ours_strict_y"] = d["ours_stage"].map(strict_map)
+    d["withings_strict_y"] = d["withings_stage"].map(strict_map)
+    d["ours_coll_y"] = d["ours_stage_collapsed"].map(coll_map)
+    d["withings_coll_y"] = d["withings_stage_collapsed"].map(coll_map)
+    d["mismatch_strict"] = (~d["stage_match_strict"]).astype(float)
+    d["mismatch_collapsed"] = (~d["stage_match_collapsed"]).astype(float)
+
+    fig = make_subplots(
+        rows=6,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.025,
+        row_heights=[0.2, 0.1, 0.18, 0.14, 0.18, 0.2],
+        subplot_titles=(
+            "Stage Overlay",
+            "Stage Mismatch (1 = disagreement)",
+            "Heart Rate Overlay",
+            "Heart Rate Delta (SleepStream - Withings)",
+            "Movement",
+            "sdHR",
+        ),
+    )
+
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["ours_strict_y"], mode="lines", name="ours stage (strict)", line=dict(color="#e76f51", width=1.8)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["withings_strict_y"], mode="lines", name="withings stage (strict)", line=dict(color="#264653", width=1.8)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["ours_coll_y"], mode="lines", name="ours stage (collapsed)", line=dict(color="#e76f51", width=1.8), visible=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["withings_coll_y"], mode="lines", name="withings stage (collapsed)", line=dict(color="#264653", width=1.8), visible=False), row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["mismatch_strict"], mode="lines", fill="tozeroy", name="mismatch strict", line=dict(color="#d62828", width=1.2)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["mismatch_collapsed"], mode="lines", fill="tozeroy", name="mismatch collapsed", line=dict(color="#f4a261", width=1.2), visible=False), row=2, col=1)
+
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["ours_bpm"], mode="lines", name="ours bpm", line=dict(color="#d62828", width=1.4)), row=3, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["hr_bpm"], mode="lines", name="withings bpm", line=dict(color="#264653", width=1.3)), row=3, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["bpm_delta"], mode="lines", name="bpm delta", line=dict(color="#1d3557", width=1.1)), row=4, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["movement"], mode="lines", name="movement", line=dict(color="#457b9d", width=1.1)), row=5, col=1)
+    fig.add_trace(go.Scatter(x=d["timestamp_local"], y=d["sdhr"], mode="lines", name="sdhr", line=dict(color="#f4a261", width=1.1)), row=6, col=1)
+
+    fig.update_yaxes(title_text="Stage", tickvals=[0, 1, 2, 3], ticktext=["Deep", "Light", "REM", "Awake"], row=1, col=1)
+    fig.update_yaxes(title_text="Mismatch", range=[0, 1.05], row=2, col=1)
+    fig.update_yaxes(title_text="BPM", row=3, col=1)
+    fig.update_yaxes(title_text="Delta", row=4, col=1)
+    fig.update_yaxes(title_text="Move", row=5, col=1)
+    fig.update_yaxes(title_text="sdHR", row=6, col=1)
+    fig.update_xaxes(title_text="Local Time", row=6, col=1)
+
+    full_range = [built["full_start"], built["full_end"]]
+    overlap_range = [built["overlap_start"], built["overlap_end"]]
+    default_range = overlap_range if window_mode == "overlap" else full_range
+
+    n_traces = len(fig.data)
+    vis_strict = [False] * n_traces
+    vis_coll = [False] * n_traces
+    for i in [0, 1, 4, 6, 7, 8, 9, 10]:
+        vis_strict[i] = True
+    for i in [2, 3, 5, 6, 7, 8, 9, 10]:
+        vis_coll[i] = True
+
+    range_relayout_full = {f"xaxis{i if i > 1 else ''}.range": full_range for i in range(1, 7)}
+    range_relayout_overlap = {f"xaxis{i if i > 1 else ''}.range": overlap_range for i in range(1, 7)}
+
+    fig.update_layout(
+        title="Interactive SleepStream vs Withings Compare",
+        height=1200,
+        width=1500,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        updatemenus=[
+            dict(
+                type="buttons",
+                direction="right",
+                x=0.01,
+                y=1.14,
+                showactive=True,
+                buttons=[
+                    dict(label="Strict stage mode", method="update", args=[{"visible": vis_strict}]),
+                    dict(label="Collapsed stage mode", method="update", args=[{"visible": vis_coll}]),
+                ],
+            ),
+            dict(
+                type="buttons",
+                direction="right",
+                x=0.40,
+                y=1.14,
+                showactive=True,
+                buttons=[
+                    dict(label="Full window", method="relayout", args=[range_relayout_full]),
+                    dict(label="Overlap window", method="relayout", args=[range_relayout_overlap]),
+                ],
+            ),
+        ],
+    )
+    fig.update_xaxes(range=default_range)
+    _write_plotly_html_with_fallback(fig, outpath, include_plotlyjs)
+    return built
+
+
 def compare_with_withings(
     night_df: pd.DataFrame,
     withings_df: pd.DataFrame,
     outdir: Path,
     night_id: str,
     dpi: int,
+    stage_compare_mode: str = "both",
+    window_mode: str = "overlap",
 ) -> Optional[dict]:
-    ours = night_df[["watch_dt", "stage_label"]].copy()
-    ours["timestamp_local"] = ours["watch_dt"].dt.floor("min")
-    ours = ours.drop_duplicates(subset=["timestamp_local"], keep="last")
-    ours = ours[ours["stage_label"].isin(STAGE_ORDER)]
-    ours = ours[["timestamp_local", "stage_label"]].rename(columns={"stage_label": "ours_stage"})
-
-    window_start = ours["timestamp_local"].min() - pd.Timedelta(minutes=5)
-    window_end = ours["timestamp_local"].max() + pd.Timedelta(minutes=5)
-    w = withings_df[(withings_df["timestamp_local"] >= window_start) & (withings_df["timestamp_local"] <= window_end)].copy()
-    if w.empty:
+    built = build_aligned_compare_df(night_df, withings_df, withings_hr_df=None, window_mode=window_mode)
+    if built is None:
         return None
-    w = w.rename(columns={"stage_label": "withings_stage"})
+    aligned = built["aligned"]
+    aligned.to_csv(outdir / "withings_stage_aligned.csv", index=False)
 
-    merged = pd.merge(ours, w, on="timestamp_local", how="inner")
-    if len(merged) < 15:
+    strict = _compute_stage_metrics(aligned, mode="strict")
+    collapsed = _compute_stage_metrics(aligned, mode="collapsed")
+    if strict is None and collapsed is None:
         return None
 
-    cm = pd.crosstab(merged["withings_stage"], merged["ours_stage"])
-    cm = cm.reindex(index=STAGE_ORDER, columns=STAGE_ORDER, fill_value=0)
+    if strict is not None:
+        cm = strict["cm"]
+        fig, ax = plt.subplots(figsize=(7, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="OrRd", linewidths=0.5, cbar=False, ax=ax)
+        ax.set_title("Withings vs SleepStream Confusion Matrix (Strict)")
+        ax.set_xlabel("Predicted (SleepStream)")
+        ax.set_ylabel("Reference (Withings)")
+        fig.tight_layout()
+        fig.savefig(outdir / "withings_confusion.png", dpi=dpi)
+        plt.close(fig)
+        strict["per_stage"].to_csv(outdir / "withings_per_stage_metrics.csv", index=False)
 
-    accuracy = float((merged["withings_stage"] == merged["ours_stage"]).mean())
-    kappa = _kappa_from_confusion(cm)
+        s = strict["aligned"]
+        stage_y = {"deep": 0, "light": 1, "rem": 2, "awake": 3}
+        fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True, gridspec_kw={"height_ratios": [1, 1]})
+        axes[0].step(s["timestamp_local"], s["withings_stage"].map(stage_y), where="post", color="#264653", linewidth=1.2)
+        axes[0].set_yticks([0, 1, 2, 3])
+        axes[0].set_yticklabels(["Deep", "Light", "REM", "Awake"])
+        axes[0].set_title("Withings Stages")
+        axes[1].step(s["timestamp_local"], s["ours_stage"].map(stage_y), where="post", color="#e76f51", linewidth=1.2)
+        axes[1].set_yticks([0, 1, 2, 3])
+        axes[1].set_yticklabels(["Deep", "Light", "REM", "Awake"])
+        axes[1].set_title("SleepStream Stages")
+        for ax in axes:
+            _style_time_axis(ax)
+        axes[-1].set_xlabel("Local Time")
+        fig.suptitle(f"Withings Comparison - {night_id}")
+        fig.tight_layout()
+        fig.savefig(outdir / "withings_overlay.png", dpi=dpi)
+        plt.close(fig)
 
-    per_stage_rows = []
-    for s in STAGE_ORDER:
-        tp = float(cm.loc[s, s])
-        true_sum = float(cm.loc[s].sum())
-        pred_sum = float(cm[s].sum())
-        recall = tp / true_sum if true_sum > 0 else np.nan
-        precision = tp / pred_sum if pred_sum > 0 else np.nan
-        per_stage_rows.append({"stage": s, "precision": precision, "recall": recall, "support_true": true_sum, "support_pred": pred_sum})
-    per_stage = pd.DataFrame(per_stage_rows)
+    if collapsed is not None:
+        cmc = collapsed["cm"]
+        fig, ax = plt.subplots(figsize=(7, 6))
+        sns.heatmap(cmc, annot=True, fmt="d", cmap="YlGnBu", linewidths=0.5, cbar=False, ax=ax)
+        ax.set_title("Withings vs SleepStream Confusion Matrix (Collapsed)")
+        ax.set_xlabel("Predicted (SleepStream)")
+        ax.set_ylabel("Reference (Withings)")
+        fig.tight_layout()
+        fig.savefig(outdir / "withings_confusion_collapsed.png", dpi=dpi)
+        plt.close(fig)
+        collapsed["per_stage"].to_csv(outdir / "withings_per_stage_metrics_collapsed.csv", index=False)
 
-    stage_y = {"deep": 0, "light": 1, "rem": 2, "awake": 3}
-    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True, gridspec_kw={"height_ratios": [1, 1]})
-    axes[0].step(merged["timestamp_local"], merged["withings_stage"].map(stage_y), where="post", color="#264653", linewidth=1.2)
-    axes[0].set_yticks([0, 1, 2, 3])
-    axes[0].set_yticklabels(["Deep", "Light", "REM", "Awake"])
-    axes[0].set_title("Withings Stages")
-    axes[1].step(merged["timestamp_local"], merged["ours_stage"].map(stage_y), where="post", color="#e76f51", linewidth=1.2)
-    axes[1].set_yticks([0, 1, 2, 3])
-    axes[1].set_yticklabels(["Deep", "Light", "REM", "Awake"])
-    axes[1].set_title("SleepStream Stages")
-    for ax in axes:
-        _style_time_axis(ax)
-    axes[-1].set_xlabel("Local Time")
-    fig.suptitle(f"Withings Comparison - {night_id}")
-    fig.tight_layout()
-    fig.savefig(outdir / "withings_overlay.png", dpi=dpi)
-    plt.close(fig)
+    strict_json = None
+    collapsed_json = None
+    if strict is not None:
+        strict_json = {
+            "night_id": night_id,
+            "mode": "strict",
+            "n_overlap_minutes": strict["n_overlap_minutes"],
+            "accuracy": strict["accuracy"],
+            "cohen_kappa": strict["cohen_kappa"],
+        }
+        with open(outdir / "withings_metrics_strict.json", "w", encoding="utf-8") as f:
+            json.dump(strict_json, f, indent=2)
 
-    fig, ax = plt.subplots(figsize=(7, 6))
-    sns.heatmap(cm, annot=True, fmt="d", cmap="OrRd", linewidths=0.5, cbar=False, ax=ax)
-    ax.set_title("Withings vs SleepStream Confusion Matrix")
-    ax.set_xlabel("Predicted (SleepStream)")
-    ax.set_ylabel("Reference (Withings)")
-    fig.tight_layout()
-    fig.savefig(outdir / "withings_confusion.png", dpi=dpi)
-    plt.close(fig)
+    if collapsed is not None:
+        collapsed_json = {
+            "night_id": night_id,
+            "mode": "collapsed",
+            "n_overlap_minutes": collapsed["n_overlap_minutes"],
+            "accuracy": collapsed["accuracy"],
+            "cohen_kappa": collapsed["cohen_kappa"],
+        }
+        with open(outdir / "withings_metrics_collapsed.json", "w", encoding="utf-8") as f:
+            json.dump(collapsed_json, f, indent=2)
 
-    per_stage.to_csv(outdir / "withings_per_stage_metrics.csv", index=False)
-    comparison = {
-        "night_id": night_id,
-        "n_overlap_minutes": int(len(merged)),
-        "accuracy": accuracy,
-        "cohen_kappa": kappa,
-    }
+    if stage_compare_mode == "strict":
+        selected = strict_json or collapsed_json
+    elif stage_compare_mode == "collapsed":
+        selected = collapsed_json or strict_json
+    else:
+        selected = strict_json or collapsed_json
+
+    if selected is None:
+        return None
+
     with open(outdir / "withings_metrics.json", "w", encoding="utf-8") as f:
-        json.dump(comparison, f, indent=2)
-    return comparison
+        json.dump(selected, f, indent=2)
+    return selected
 
 
 def compare_with_withings_hr(
@@ -622,24 +913,31 @@ def compare_with_withings_hr(
     outdir: Path,
     night_id: str,
     dpi: int,
+    window_mode: str = "overlap",
 ) -> Optional[dict]:
     ours = night_df[["watch_dt", "bpm"]].copy().dropna(subset=["bpm"])
     ours["timestamp_local"] = ours["watch_dt"].dt.floor("min")
     ours = ours.groupby("timestamp_local", as_index=False)["bpm"].median()
     ours = ours.rename(columns={"bpm": "ours_bpm"})
 
-    window_start = ours["timestamp_local"].min() - pd.Timedelta(minutes=5)
-    window_end = ours["timestamp_local"].max() + pd.Timedelta(minutes=5)
-    w = withings_hr_df[
-        (withings_hr_df["timestamp_local"] >= window_start)
-        & (withings_hr_df["timestamp_local"] <= window_end)
-    ].copy()
+    w = _prepare_withings_hr_table(withings_hr_df)
     if w.empty:
         return None
 
-    w["timestamp_local"] = pd.to_datetime(w["timestamp_local"]).dt.floor("min")
-    w = w.groupby("timestamp_local", as_index=False)["hr_bpm"].median()
+    full_start = min(ours["timestamp_local"].min(), w["timestamp_local"].min())
+    full_end = max(ours["timestamp_local"].max(), w["timestamp_local"].max())
+    overlap_start = max(ours["timestamp_local"].min(), w["timestamp_local"].min())
+    overlap_end = min(ours["timestamp_local"].max(), w["timestamp_local"].max())
+    if overlap_end < overlap_start:
+        return None
 
+    if window_mode == "overlap":
+        window_start, window_end = overlap_start, overlap_end
+    else:
+        window_start, window_end = full_start, full_end
+
+    ours = ours[(ours["timestamp_local"] >= window_start) & (ours["timestamp_local"] <= window_end)]
+    w = w[(w["timestamp_local"] >= window_start) & (w["timestamp_local"] <= window_end)]
     merged = pd.merge(ours, w, on="timestamp_local", how="inner")
     if len(merged) < 15:
         return None
@@ -782,6 +1080,10 @@ def generate_for_night(
     withings_df: Optional[pd.DataFrame] = None,
     withings_hr_df: Optional[pd.DataFrame] = None,
     withings_nights_df: Optional[pd.DataFrame] = None,
+    stage_compare_mode: str = "both",
+    compare_window: str = "overlap",
+    compare_interactive: bool = True,
+    include_plotlyjs: str | bool = True,
 ) -> dict:
     outdir.mkdir(parents=True, exist_ok=True)
     episodes = get_episodes(ana_session_df, summary.epoch_sec)
@@ -793,7 +1095,11 @@ def generate_for_night(
     plot_episode_durations(episodes, outdir / "episode_durations.png", dpi=dpi)
     plot_feature_space(ana_session_df, outdir / "feature_space.png", dpi=dpi)
     plot_data_integrity(raw_session_df, outdir / "data_integrity.png", dpi=dpi)
-    save_interactive_html(ana_session_df, outdir / "interactive_timeline.html")
+    save_interactive_html(
+        ana_session_df,
+        outdir / "interactive_timeline.html",
+        include_plotlyjs=include_plotlyjs,
+    )
 
     if withings_df is not None:
         comparison = compare_with_withings(
@@ -802,6 +1108,8 @@ def generate_for_night(
             outdir=outdir,
             night_id=summary.night_id,
             dpi=dpi,
+            stage_compare_mode=stage_compare_mode,
+            window_mode=compare_window,
         )
         if comparison is not None:
             metrics.update(
@@ -809,7 +1117,18 @@ def generate_for_night(
                     "withings_overlap_min": comparison["n_overlap_minutes"],
                     "withings_accuracy": comparison["accuracy"],
                     "withings_kappa": comparison["cohen_kappa"],
+                    "withings_compare_mode": comparison.get("mode", "strict"),
                 }
+            )
+
+        if compare_interactive:
+            save_interactive_compare_html(
+                ana_session_df,
+                withings_df,
+                withings_hr_df=withings_hr_df,
+                outpath=outdir / "interactive_compare_timeline.html",
+                window_mode=compare_window,
+                include_plotlyjs=include_plotlyjs,
             )
 
     if withings_hr_df is not None:
@@ -819,6 +1138,7 @@ def generate_for_night(
             outdir=outdir,
             night_id=summary.night_id,
             dpi=dpi,
+            window_mode=compare_window,
         )
         if hr_comparison is not None:
             metrics.update(
@@ -877,6 +1197,28 @@ def build_parser() -> argparse.ArgumentParser:
             "Optional Withings export path. Can be a CSV file or an export "
             "directory containing raw_tracker_sleep-state.csv or sleep.csv"
         ),
+    )
+    p.add_argument(
+        "--compare-window",
+        choices=["overlap", "full"],
+        default="overlap",
+        help="Comparison window for Withings overlays/metrics",
+    )
+    p.add_argument(
+        "--stage-compare-mode",
+        choices=["strict", "collapsed", "both"],
+        default="both",
+        help="How to compare stages when Withings lacks REM",
+    )
+    p.add_argument(
+        "--compare-interactive",
+        action="store_true",
+        help="Generate interactive compare timeline when Withings is provided",
+    )
+    p.add_argument(
+        "--self-contained-html",
+        action="store_true",
+        help="Embed Plotly JS in HTML files for offline viewing",
     )
     p.add_argument("--dpi", type=int, default=150, help="PNG output DPI")
     return p
@@ -942,6 +1284,7 @@ def main() -> None:
             withings_df = load_withings_sleep(withings_path, tz_mode=args.tz)
 
     all_metrics = []
+    include_plotlyjs = True if args.self_contained_html else "cdn"
     for _, srow in selected.iterrows():
         sid = int(srow["session_id"])
         night_id = srow["night_id"]
@@ -970,6 +1313,10 @@ def main() -> None:
             withings_df=withings_df,
             withings_hr_df=withings_hr_df,
             withings_nights_df=withings_nights_df,
+            stage_compare_mode=args.stage_compare_mode,
+            compare_window=args.compare_window,
+            compare_interactive=args.compare_interactive,
+            include_plotlyjs=include_plotlyjs,
         )
         all_metrics.append(metrics)
 

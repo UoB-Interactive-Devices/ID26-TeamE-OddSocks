@@ -61,8 +61,12 @@ def _normalize_stage(value: object) -> Optional[str]:
 
 
 def _coerce_local_datetime(series: pd.Series, tz_mode: str) -> pd.Series:
-    # First parse while preserving timezone if present.
-    parsed = pd.to_datetime(series, errors="coerce", utc=False)
+    # First try preserving timezone info; fallback to UTC-normalized parse when
+    # source contains mixed offsets (e.g. +01:00 and +02:00 across DST).
+    try:
+        parsed = pd.to_datetime(series, errors="coerce", utc=False)
+    except ValueError:
+        parsed = pd.to_datetime(series, errors="coerce", utc=True)
     if tz_mode != "local":
         if getattr(parsed.dt, "tz", None) is not None:
             return parsed.dt.tz_convert("UTC").dt.tz_localize(None)
