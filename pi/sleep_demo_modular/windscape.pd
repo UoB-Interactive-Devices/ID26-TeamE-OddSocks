@@ -54,7 +54,7 @@
 #X obj 550 290 *~ 0.3;
 #X obj 550 320 +~ 0.7;
 #X obj 650 320 *~;
-#X obj 820 290 * 4.0;
+#X obj 820 290 * 2.5;
 #X obj 650 350 *~;
 #X obj 950 200 r bpm-value;
 #X obj 950 230 expr max($f1\, 30) / 60;
@@ -74,6 +74,7 @@
 #X obj 600 540 rev3~ 100 85 3000 20;
 #X obj 600 570 *~ 1.2;
 #X obj 600 610 dac~;
+#X obj 500 350 *~ 0.15;
 #X connect 2 0 27 0;
 #X connect 27 0 3 0;
 #X connect 2 0 4 0;
@@ -147,7 +148,8 @@
 #X connect 66 0 67 0;
 #X connect 67 0 68 0;
 #X connect 63 0 68 1;
-#X connect 42 0 69 0;
+#X connect 42 0 75 0;
+#X connect 75 0 69 0;
 #X connect 68 0 69 1;
 #X connect 69 0 70 0;
 #X connect 56 0 70 1;
