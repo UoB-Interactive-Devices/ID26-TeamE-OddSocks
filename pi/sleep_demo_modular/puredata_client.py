@@ -6,8 +6,10 @@ import subprocess
 from pathlib import Path
 
 from constants import (
+    PUREDATA_AUDIO_OUT_DEVICE,
     PUREDATA_COMMAND,
     PUREDATA_ENABLED,
+    PUREDATA_FORCE_ALSA,
     PUREDATA_UDP_HOST,
     PUREDATA_UDP_PORT,
     PUREDATA_WORKDIR,
@@ -28,8 +30,27 @@ class PureDataClient:
         cmd = PUREDATA_COMMAND
         if isinstance(cmd, str):
             cmd = shlex.split(cmd)
+        cmd = list(cmd) if cmd else []
         if not cmd:
             return
+
+        has_audiooutdev = any(part == "-audiooutdev" for part in cmd)
+        has_alsa = any(part == "-alsa" for part in cmd)
+        extra_args: list[str] = []
+        if PUREDATA_FORCE_ALSA and not has_alsa:
+            extra_args.append("-alsa")
+        if not has_audiooutdev:
+            extra_args.extend(["-audiooutdev", str(PUREDATA_AUDIO_OUT_DEVICE)])
+
+        if extra_args:
+            try:
+                open_idx = cmd.index("-open")
+            except ValueError:
+                open_idx = -1
+            if open_idx >= 0:
+                cmd[open_idx:open_idx] = extra_args
+            else:
+                cmd.extend(extra_args)
 
         cwd = str(Path(PUREDATA_WORKDIR).expanduser()) if PUREDATA_WORKDIR else None
 

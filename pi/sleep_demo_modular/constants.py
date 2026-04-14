@@ -39,6 +39,9 @@ PUREDATA_ENABLED = True
 # Open the patch created in this module folder.
 PUREDATA_COMMAND = ["pd", "-nogui", "-open", "pi/sleep_demo_modular/windscape.pd"]
 PUREDATA_WORKDIR = ""
+# Force PD audio to ALSA device index 1 (speaker) on Raspberry Pi.
+PUREDATA_FORCE_ALSA = True
+PUREDATA_AUDIO_OUT_DEVICE = 1
 PUREDATA_UDP_HOST = "127.0.0.1"
 PUREDATA_UDP_PORT = 9000
 
