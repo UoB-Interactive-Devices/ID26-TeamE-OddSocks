@@ -19,10 +19,10 @@
 #X msg 332 282 600;
 #X msg 392 282 1500;
 #X obj 212 314 s cutoff;
-#X msg 212 366 0.20;
-#X msg 272 366 0.24;
-#X msg 332 366 0.16;
-#X msg 392 366 0.30;
+#X msg 212 366 0.32;
+#X msg 272 366 0.38;
+#X msg 332 366 0.26;
+#X msg 392 366 0.48;
 #X obj 212 398 s amp;
 #X text 456 282 Cutoff by stage: Awake \/ Light \/ Deep \/ REM;
 #X text 456 366 Amplitude by stage: Awake \/ Light \/ Deep \/ REM;
@@ -42,8 +42,8 @@
 #X obj 700 330 *~;
 #X obj 700 360 *~;
 #X obj 700 390 rev3~ 100 85 3000 20;
-#X obj 700 420 *~ 1;
-#X obj 780 420 *~ 1;
+#X obj 700 420 *~ 1.8;
+#X obj 780 420 *~ 0;
 #X obj 700 450 dac~;
 #X text 700 485 Wind chain: noise -> filters -> gust LFO -> amp -> reverb -> stereo out;
 #X obj 36 94 delay 500;
