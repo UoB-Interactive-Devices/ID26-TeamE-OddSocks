@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import shutil
 import shlex
 import socket
 import subprocess
@@ -17,9 +19,10 @@ from constants import (
 
 
 class PureDataClient:
-    def __init__(self):
+    def __init__(self, log: logging.Logger | None = None):
         self.process: subprocess.Popen | None = None
         self.sock: socket.socket | None = None
+        self.log = log or logging.getLogger("sleep_demo_modular.pd")
 
     def start(self):
         if not PUREDATA_ENABLED:
@@ -32,6 +35,12 @@ class PureDataClient:
             cmd = shlex.split(cmd)
         cmd = list(cmd) if cmd else []
         if not cmd:
+            self.log.warning("Pure Data command is empty; skipping launch")
+            return
+
+        exe = cmd[0]
+        if shutil.which(exe) is None:
+            self.log.error("Pure Data executable not found in PATH: %s", exe)
             return
 
         has_audiooutdev = any(part == "-audiooutdev" for part in cmd)
@@ -52,11 +61,20 @@ class PureDataClient:
             else:
                 cmd.extend(extra_args)
 
-        cwd = str(Path(PUREDATA_WORKDIR).expanduser()) if PUREDATA_WORKDIR else None
+        repo_root = Path(__file__).resolve().parents[2]
+        if PUREDATA_WORKDIR:
+            workdir_path = Path(PUREDATA_WORKDIR).expanduser()
+            if not workdir_path.is_absolute():
+                workdir_path = repo_root / workdir_path
+            cwd = str(workdir_path)
+        else:
+            cwd = str(repo_root)
 
         try:
+            self.log.info("Launching Pure Data: %s (cwd=%s)", " ".join(cmd), cwd)
             self.process = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
+            self.log.exception("Failed to launch Pure Data")
             self.process = None
 
         if self.sock is None:

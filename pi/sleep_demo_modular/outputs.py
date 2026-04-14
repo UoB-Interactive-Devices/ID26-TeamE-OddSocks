@@ -23,7 +23,7 @@ class Outputs:
         self.led = LedDriver()
         self.motor = MotorDriver()
         self.nebuliser = NebuliserDriver()
-        self.pd = PureDataClient()
+        self.pd = PureDataClient(log=self.log.getChild("pd"))
 
     async def apply_stage(self, stage: dict, bpm: int):
         if self.dry_run:
