@@ -42,6 +42,9 @@ PUREDATA_WORKDIR = ""
 # Force PD audio to ALSA device index 1 (speaker) on Raspberry Pi.
 PUREDATA_FORCE_ALSA = True
 PUREDATA_AUDIO_OUT_DEVICE = 1
+# Capture PD stdout/stderr to a file so audio/startup errors are visible.
+PUREDATA_CAPTURE_LOG = True
+PUREDATA_LOG_FILE = "sleepstream_pd.log"
 PUREDATA_UDP_HOST = "127.0.0.1"
 PUREDATA_UDP_PORT = 9000
 

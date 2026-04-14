@@ -9,9 +9,11 @@ from pathlib import Path
 
 from constants import (
     PUREDATA_AUDIO_OUT_DEVICE,
+    PUREDATA_CAPTURE_LOG,
     PUREDATA_COMMAND,
     PUREDATA_ENABLED,
     PUREDATA_FORCE_ALSA,
+    PUREDATA_LOG_FILE,
     PUREDATA_UDP_HOST,
     PUREDATA_UDP_PORT,
     PUREDATA_WORKDIR,
@@ -23,6 +25,7 @@ class PureDataClient:
         self.process: subprocess.Popen | None = None
         self.sock: socket.socket | None = None
         self.log = log or logging.getLogger("sleep_demo_modular.pd")
+        self._proc_log_handle = None
 
     def start(self):
         if not PUREDATA_ENABLED:
@@ -72,10 +75,26 @@ class PureDataClient:
 
         try:
             self.log.info("Launching Pure Data: %s (cwd=%s)", " ".join(cmd), cwd)
-            self.process = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout_target = subprocess.DEVNULL
+            stderr_target = subprocess.DEVNULL
+            if PUREDATA_CAPTURE_LOG:
+                log_path = Path(cwd) / PUREDATA_LOG_FILE
+                self._proc_log_handle = open(log_path, "a", encoding="utf-8")
+                stdout_target = self._proc_log_handle
+                stderr_target = self._proc_log_handle
+                self.log.info("Pure Data logs -> %s", log_path)
+            self.process = subprocess.Popen(cmd, cwd=cwd, stdout=stdout_target, stderr=stderr_target)
+            if self.process.poll() is not None:
+                self.log.error("Pure Data exited immediately with code %s", self.process.returncode)
         except Exception:
             self.log.exception("Failed to launch Pure Data")
             self.process = None
+            if self._proc_log_handle is not None:
+                try:
+                    self._proc_log_handle.close()
+                except OSError:
+                    pass
+                self._proc_log_handle = None
 
         if self.sock is None:
             try:
@@ -94,6 +113,13 @@ class PureDataClient:
                 except Exception:
                     pass
         self.process = None
+
+        if self._proc_log_handle is not None:
+            try:
+                self._proc_log_handle.close()
+            except OSError:
+                pass
+            self._proc_log_handle = None
 
         if self.sock is not None:
             try:
