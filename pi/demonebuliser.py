@@ -5,7 +5,7 @@ except ImportError:
     print("Error importing RPi.GPIO! This script must be run on a Raspberry Pi or with GPIO libraries installed.")
     exit(1)
 
-MIST_PIN = 18
+MIST_PIN = 16
 
 def setup():
     """Configure the GPIO pin to output mode and ensure it defaults to LOW."""
