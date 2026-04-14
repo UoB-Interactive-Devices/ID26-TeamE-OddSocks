@@ -36,25 +36,9 @@ MAX_BPM = 180
 # -------------------- Pure Data settings --------------------
 # Launch command and UDP target for soundscape control messages.
 PUREDATA_ENABLED = True
-# Open the patch created in this module folder.
-# GUI mode is more reliable on some Pd builds than -nogui for initial audio setup.
-PUREDATA_COMMAND = ["pd", "-open", "pi/sleep_demo_modular/windscape.pd"]
+# Working command on Pi: headless, no input, ALSA, output device 3.
+PUREDATA_COMMAND = ["pd", "-nogui", "-noadc", "-alsa", "-audiodev", "3", "pi/sleep_demo_modular/windscape.pd"]
 PUREDATA_WORKDIR = ""
-# Force PD audio to ALSA device index 1 (speaker) on Raspberry Pi.
-# Set False to let PD choose the system default backend/device.
-PUREDATA_FORCE_ALSA = False
-# Set to None to avoid brittle numeric device mapping across reboots.
-PUREDATA_AUDIO_OUT_DEVICE = None
-# Disable audio input device open (not needed for this patch and often missing on Pi).
-PUREDATA_DISABLE_AUDIO_IN = True
-# If forced output device fails, retry once with system default output.
-PUREDATA_FALLBACK_TO_DEFAULT_OUTPUT = True
-# Prefer a stable ALSA card name from "aplay -L" / "aplay -l".
-# Example from your Pi output: "Device" (USB PnP Sound Device).
-PUREDATA_ALSA_CARD = "Device"
-# Capture PD stdout/stderr to a file so audio/startup errors are visible.
-PUREDATA_CAPTURE_LOG = True
-PUREDATA_LOG_FILE = "sleepstream_pd.log"
 PUREDATA_UDP_HOST = "127.0.0.1"
 PUREDATA_UDP_PORT = 9000
 
