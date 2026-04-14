@@ -46,7 +46,9 @@
 #X obj 780 420 *~ 0.6;
 #X obj 700 450 dac~;
 #X text 700 485 Wind chain: noise -> filters -> gust LFO -> amp -> reverb -> stereo out;
-#X connect 2 0 3 0;
+#X obj 36 94 delay 100;
+#X connect 2 0 47 0;
+#X connect 47 0 3 0;
 #X connect 2 0 4 0;
 #X connect 2 0 5 0;
 #X connect 4 0 8 0;

@@ -91,31 +91,40 @@ class PureDataClient:
                 stdout_target = self._proc_log_handle
                 stderr_target = self._proc_log_handle
                 self.log.info("Pure Data logs -> %s", log_path)
-            self.process = subprocess.Popen(cmd, cwd=cwd, stdout=stdout_target, stderr=stderr_target)
-            time.sleep(0.2)
-            if self.process.poll() is not None:
-                self.log.error("Pure Data exited immediately with code %s", self.process.returncode)
-                if PUREDATA_FALLBACK_TO_DEFAULT_OUTPUT and added_audiooutdev:
-                    self.log.warning("Retrying Pure Data with default output device")
-                    fallback_cmd: list[str] = []
-                    i = 0
-                    while i < len(cmd):
-                        if cmd[i] == "-audiooutdev" and i + 1 < len(cmd):
-                            i += 2
-                            continue
-                        fallback_cmd.append(cmd[i])
-                        i += 1
-                    self.process = subprocess.Popen(
-                        fallback_cmd,
-                        cwd=cwd,
-                        stdout=stdout_target,
-                        stderr=stderr_target,
-                    )
-                    time.sleep(0.2)
-                    if self.process.poll() is not None:
-                        self.log.error("Pure Data fallback also exited immediately with code %s", self.process.returncode)
-                    else:
-                        self.log.info("Pure Data started using default output device")
+            attempts: list[tuple[str, list[str]]] = [("configured", cmd)]
+
+            if PUREDATA_FALLBACK_TO_DEFAULT_OUTPUT and added_audiooutdev:
+                no_outdev: list[str] = []
+                i = 0
+                while i < len(cmd):
+                    if cmd[i] == "-audiooutdev" and i + 1 < len(cmd):
+                        i += 2
+                        continue
+                    no_outdev.append(cmd[i])
+                    i += 1
+                attempts.append(("without-audiooutdev", no_outdev))
+
+                # Some Pi setups fail specifically when forcing ALSA; retry with default backend.
+                no_outdev_no_alsa = [part for part in no_outdev if part != "-alsa"]
+                attempts.append(("without-audiooutdev-and-alsa", no_outdev_no_alsa))
+
+            launched = False
+            for label, attempt_cmd in attempts:
+                self.log.info("Launching Pure Data attempt=%s cmd=%s", label, " ".join(attempt_cmd))
+                self.process = subprocess.Popen(attempt_cmd, cwd=cwd, stdout=stdout_target, stderr=stderr_target)
+                time.sleep(0.25)
+                if self.process.poll() is None:
+                    self.log.info("Pure Data started (attempt=%s)", label)
+                    launched = True
+                    break
+                self.log.error(
+                    "Pure Data exited immediately on attempt=%s with code %s",
+                    label,
+                    self.process.returncode,
+                )
+
+            if not launched:
+                self.process = None
         except Exception:
             self.log.exception("Failed to launch Pure Data")
             self.process = None

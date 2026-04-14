@@ -40,7 +40,8 @@ PUREDATA_ENABLED = True
 PUREDATA_COMMAND = ["pd", "-nogui", "-open", "pi/sleep_demo_modular/windscape.pd"]
 PUREDATA_WORKDIR = ""
 # Force PD audio to ALSA device index 1 (speaker) on Raspberry Pi.
-PUREDATA_FORCE_ALSA = True
+# Set False to let PD choose the system default backend/device.
+PUREDATA_FORCE_ALSA = False
 PUREDATA_AUDIO_OUT_DEVICE = 1
 # Disable audio input device open (not needed for this patch and often missing on Pi).
 PUREDATA_DISABLE_AUDIO_IN = True
