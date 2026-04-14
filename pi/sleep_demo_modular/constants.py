@@ -77,7 +77,7 @@ STAGES = [
             "step_s": 0.03,
         },
         "motor": {"mode": "pulse", "duty": 28, "on_s": 0.25, "off_s": 2.0},
-        "neb": {"mode": "pulse", "on_s": 0.4, "off_s": 9.0},
+        "neb": {"mode": "pulse", "on_s": 4, "off_s": 9.0},
     },
     {
         # Deep sleep: dim slower light, low motor activity, very occasional nebuliser.
@@ -92,7 +92,7 @@ STAGES = [
             "step_s": 0.045,
         },
         "motor": {"mode": "pulse", "duty": 18, "on_s": 0.2, "off_s": 4.0},
-        "neb": {"mode": "pulse", "on_s": 0.3, "off_s": 12.0},
+        "neb": {"mode": "pulse", "on_s": 3, "off_s": 12.0},
     },
     {
         # REM: brighter/faster visual changes with stronger, more frequent stimulation.
@@ -107,6 +107,6 @@ STAGES = [
             "step_s": 0.01,
         },
         "motor": {"mode": "pulse", "duty": 65, "on_s": 0.35, "off_s": 0.9},
-        "neb": {"mode": "pulse", "on_s": 0.8, "off_s": 5.0},
+        "neb": {"mode": "pulse", "on_s": 8, "off_s": 5.0},
     },
 ]
