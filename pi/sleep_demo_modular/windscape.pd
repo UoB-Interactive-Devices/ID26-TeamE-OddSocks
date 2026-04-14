@@ -1,6 +1,6 @@
 #N canvas 120 80 1180 760 10;
 #X text 35 18 Windscape patch for sleep_demo_modular;
-#X text 35 36 Receives UDP messages on port 9000: "bpm <n>;" and "stage <name>;";
+#X text 35 36 Receives UDP messages on port 9000: "bpm <n>\;" and "stage <name>\;";
 #X obj 36 78 loadbang;
 #X msg 36 110 \; pd dsp 1;
 #X msg 152 110 bpm 60;
@@ -13,7 +13,7 @@
 #X obj 36 310 s bpm-value;
 #X obj 132 310 expr (($f1 - 30) / 150) * 0.25 + 0.04;
 #X obj 132 340 s gust-rate;
-#X obj 212 250 sel Awake Light Deep REM awake light deep rem;
+#X obj 212 250 route Awake Light Deep REM awake light deep rem;
 #X msg 212 282 1200;
 #X msg 272 282 900;
 #X msg 332 282 600;

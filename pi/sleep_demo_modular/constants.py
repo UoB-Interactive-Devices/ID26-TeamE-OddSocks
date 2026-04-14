@@ -42,6 +42,10 @@ PUREDATA_WORKDIR = ""
 # Force PD audio to ALSA device index 1 (speaker) on Raspberry Pi.
 PUREDATA_FORCE_ALSA = True
 PUREDATA_AUDIO_OUT_DEVICE = 1
+# Disable audio input device open (not needed for this patch and often missing on Pi).
+PUREDATA_DISABLE_AUDIO_IN = True
+# If forced output device fails, retry once with system default output.
+PUREDATA_FALLBACK_TO_DEFAULT_OUTPUT = True
 # Capture PD stdout/stderr to a file so audio/startup errors are visible.
 PUREDATA_CAPTURE_LOG = True
 PUREDATA_LOG_FILE = "sleepstream_pd.log"
