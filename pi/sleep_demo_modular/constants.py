@@ -13,7 +13,7 @@ NEBULISER_PIN = 16
 NEB_ACTIVE_HIGH = True
 
 # NeoPixel data pin and number of LEDs in the ring/strip.
-LED_PIN_NAME = 6
+LED_PIN_NAME = "D6"
 LED_COUNT = 3
 
 
