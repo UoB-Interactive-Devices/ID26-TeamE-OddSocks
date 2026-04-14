@@ -1,0 +1,137 @@
+{
+  "protocol": {
+    "type": "dreamdemo",
+    "version": 1
+  },
+  "ble": {
+    "name_prefix": "Bangle",
+    "scan_timeout_s": 10.0,
+    "connect_timeout_s": 25.0,
+    "reconnect_min_s": 2.0,
+    "reconnect_max_s": 30.0,
+    "uart_tx_char_uuid": "6e400003-b5a3-f393-e0a9-e50e24dcca9e",
+    "stop_demo_on_disconnect": false
+  },
+  "demo": {
+    "start_on_launch": false,
+    "default_bpm": 60,
+    "min_bpm": 30,
+    "max_bpm": 180,
+    "default_intensity": 1.0,
+    "max_intensity": 1.5
+  },
+  "sequence": ["awake", "light", "deep", "rem"],
+  "stages": {
+    "awake": {
+      "duration_s": 20,
+      "led": {
+        "pattern": "pulse",
+        "color": [255, 95, 20],
+        "min_brightness": 0.01,
+        "max_brightness": 0.08,
+        "steps": 60,
+        "step_s": 0.035
+      },
+      "motor": {
+        "mode": "off"
+      },
+      "nebuliser": {
+        "mode": "off"
+      }
+    },
+    "light": {
+      "duration_s": 20,
+      "led": {
+        "pattern": "pulse",
+        "color": [255, 60, 0],
+        "min_brightness": 0.01,
+        "max_brightness": 0.1,
+        "steps": 55,
+        "step_s": 0.03
+      },
+      "motor": {
+        "mode": "pulse",
+        "duty": 28,
+        "pulse_on_s": 0.25,
+        "pulse_off_s": 2.0
+      },
+      "nebuliser": {
+        "mode": "pulse",
+        "on_s": 0.4,
+        "off_s": 9.0
+      }
+    },
+    "deep": {
+      "duration_s": 20,
+      "led": {
+        "pattern": "pulse",
+        "color": [200, 15, 0],
+        "min_brightness": 0.004,
+        "max_brightness": 0.04,
+        "steps": 80,
+        "step_s": 0.04
+      },
+      "motor": {
+        "mode": "pulse",
+        "duty": 18,
+        "pulse_on_s": 0.18,
+        "pulse_off_s": 4.0
+      },
+      "nebuliser": {
+        "mode": "pulse",
+        "on_s": 0.3,
+        "off_s": 12.0
+      }
+    },
+    "rem": {
+      "duration_s": 20,
+      "led": {
+        "pattern": "crossfade",
+        "color_a": [255, 0, 0],
+        "color_b": [255, 75, 0],
+        "min_brightness": 0.02,
+        "max_brightness": 0.16,
+        "steps": 100,
+        "step_s": 0.008
+      },
+      "motor": {
+        "mode": "pulse",
+        "duty": 65,
+        "pulse_on_s": 0.35,
+        "pulse_off_s": 0.9
+      },
+      "nebuliser": {
+        "mode": "pulse",
+        "on_s": 0.8,
+        "off_s": 5.0
+      }
+    }
+  },
+  "hardware": {
+    "led": {
+      "enabled": true,
+      "pin": "D18",
+      "count": 3,
+      "startup_brightness": 0.01
+    },
+    "motor": {
+      "enabled": true,
+      "chip": 0,
+      "pin": 17,
+      "pwm_hz": 100
+    },
+    "nebuliser": {
+      "enabled": true,
+      "chip": 0,
+      "pin": 27,
+      "active_high": true
+    },
+    "puredata": {
+      "enabled": true,
+      "command": ["pd", "-nogui", "-open", "/home/pi/windscape.pd"],
+      "working_dir": "",
+      "udp_host": "127.0.0.1",
+      "udp_port": 9000
+    }
+  }
+}
