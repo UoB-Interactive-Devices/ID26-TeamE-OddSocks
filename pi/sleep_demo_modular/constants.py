@@ -5,15 +5,15 @@ from __future__ import annotations
 
 # -------------------- Hardware pins (edit here when wiring is final) --------------------
 # Motor output pin and PWM frequency for vibration intensity control.
-MOTOR_PIN = 17
+MOTOR_PIN = 23
 MOTOR_PWM_HZ = 100
 
 # Nebuliser relay/transistor control pin. If wiring is inverted, set active high False.
-NEBULISER_PIN = 27
+NEBULISER_PIN = 16
 NEB_ACTIVE_HIGH = True
 
 # NeoPixel data pin and number of LEDs in the ring/strip.
-LED_PIN_NAME = "D18"
+LED_PIN_NAME = 6
 LED_COUNT = 3
 
 
