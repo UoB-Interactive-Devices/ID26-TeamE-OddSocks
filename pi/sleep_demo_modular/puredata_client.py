@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import shlex
 import socket
@@ -9,6 +10,7 @@ import time
 from pathlib import Path
 
 from constants import (
+    PUREDATA_ALSA_CARD,
     PUREDATA_AUDIO_OUT_DEVICE,
     PUREDATA_CAPTURE_LOG,
     PUREDATA_COMMAND,
@@ -85,6 +87,12 @@ class PureDataClient:
             self.log.info("Launching Pure Data: %s (cwd=%s)", " ".join(cmd), cwd)
             stdout_target = subprocess.DEVNULL
             stderr_target = subprocess.DEVNULL
+            proc_env = None
+            if PUREDATA_ALSA_CARD:
+                proc_env = dict(os.environ)
+                proc_env["ALSA_CARD"] = PUREDATA_ALSA_CARD
+                proc_env["ALSA_PCM_CARD"] = PUREDATA_ALSA_CARD
+                self.log.info("Setting ALSA card preference for PD: %s", PUREDATA_ALSA_CARD)
             if PUREDATA_CAPTURE_LOG:
                 log_path = Path(cwd) / PUREDATA_LOG_FILE
                 self._proc_log_handle = open(log_path, "a", encoding="utf-8")
@@ -111,7 +119,13 @@ class PureDataClient:
             launched = False
             for label, attempt_cmd in attempts:
                 self.log.info("Launching Pure Data attempt=%s cmd=%s", label, " ".join(attempt_cmd))
-                self.process = subprocess.Popen(attempt_cmd, cwd=cwd, stdout=stdout_target, stderr=stderr_target)
+                self.process = subprocess.Popen(
+                    attempt_cmd,
+                    cwd=cwd,
+                    stdout=stdout_target,
+                    stderr=stderr_target,
+                    env=proc_env,
+                )
                 time.sleep(0.25)
                 if self.process.poll() is None:
                     self.log.info("Pure Data started (attempt=%s)", label)
