@@ -8,8 +8,10 @@ import signal
 from pathlib import Path
 
 from app import MasterApp
-from config import DEFAULT_DB_PATH
 from db import Database
+
+#We grab file path location later, so we need a default
+DEFAULT_DB_PATH = Path(__file__).resolve().parent / "sleep_core.db"
 
 
 def parse_args() -> argparse.Namespace:

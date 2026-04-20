@@ -3,6 +3,7 @@
 The database is intentionally simple:
 - sessions: one row per night session
 - raw_packets: every accepted inbound packet
+- sleep_updates: structured sleepstream packets from the watch
 - stimulus_events: every output action attempt
 """
 
@@ -61,8 +62,29 @@ class Database:
             )
             """
         )
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sleep_updates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
+                recv_ts_utc TEXT NOT NULL,
+                watch_ts_sec INTEGER NOT NULL,
+                sequence INTEGER NOT NULL,
+                status INTEGER NOT NULL,
+                consecutive INTEGER,
+                source_mode INTEGER,
+                movement INTEGER,
+                bpm INTEGER,
+                sdhr REAL,
+                UNIQUE(sequence, watch_ts_sec),
+                FOREIGN KEY(session_id) REFERENCES sessions(id)
+            )
+            """
+        )
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_raw_packets_session ON raw_packets(session_id)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_stimulus_events_session ON stimulus_events(session_id)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sleep_updates_session ON sleep_updates(session_id)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sleep_updates_watch_ts ON sleep_updates(watch_ts_sec)")
         self.conn.commit()
 
     def close(self) -> None:
@@ -94,6 +116,29 @@ class Database:
             VALUES (?, ?, ?, ?, ?)
             """,
             (session_id, self._now_utc(), packet_kind, stage, json.dumps(payload, separators=(",", ":"))),
+        )
+        self.conn.commit()
+
+    def log_sleep_update(self, session_id: int | None, packet: dict[str, Any]) -> None:
+        self.conn.execute(
+            """
+            INSERT OR IGNORE INTO sleep_updates (
+                session_id, recv_ts_utc, watch_ts_sec, sequence, status,
+                consecutive, source_mode, movement, bpm, sdhr
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id,
+                self._now_utc(),
+                packet["watch_ts_sec"],
+                packet["sequence"],
+                packet["status"],
+                packet.get("consecutive"),
+                packet.get("source_mode"),
+                packet.get("movement"),
+                packet.get("bpm"),
+                packet.get("sdhr"),
+            ),
         )
         self.conn.commit()
 

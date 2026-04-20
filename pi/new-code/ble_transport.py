@@ -11,14 +11,17 @@ import json
 import time
 from typing import Any, Awaitable, Callable
 
-from config import (
-    BLE_CONNECT_TIMEOUT_S,
-    BLE_NAME_PREFIX,
-    BLE_RETRY_SLEEP_S,
-    BLE_SCAN_TIMEOUT_S,
-    UART_RX_UUID,
-    UART_TX_UUID,
-)
+# One watch in v1.
+#These values for the BLE watch are good probably maybe
+BLE_NAME_PREFIX = "Bangle"
+BLE_SCAN_TIMEOUT_S = 8.0
+BLE_CONNECT_TIMEOUT_S = 20.0
+BLE_RETRY_SLEEP_S = 2.0
+
+# Nordic UART Service, gives us unique pathways to communicate with the watch
+#The first is watch to this, the other is vice versa
+UART_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+UART_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 
 try:
     from bleak import BleakClient, BleakScanner

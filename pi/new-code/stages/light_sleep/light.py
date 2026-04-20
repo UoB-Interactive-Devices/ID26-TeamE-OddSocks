@@ -10,6 +10,6 @@ async def run(context: dict) -> tuple[str, str, bool]:
     # TODO: replace this placeholder with real logic for light_sleep/light.
     # context keys: stage, stimulus, send_watch_json, log
     action = "placeholder"
-    details = "TODO: implement light_sleep/light behavior"
+    details = "TODO: implement light_sleep/light behaviour"
     success = True
     return action, details, success

@@ -3,13 +3,175 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import time
+from typing import Any
 
 from ble_transport import BleTransport
-from config import DISCONNECT_TIMEOUT_S
 from db import Database
-from protocol import normalize_packet
-from stages.router import run_single_stimulus, run_stage
+
+
+# If disconnected while running, stop the night after this timeout.
+DISCONNECT_TIMEOUT_S = 15 * 60
+
+# Protocol values we currently accept.
+VALID_STAGES = ["unknown", "not_worn", "awake", "light_sleep", "deep_sleep", "rem"]
+VALID_STIMULI = ["sound", "smell", "light", "pi_motor", "watch_haptic"]
+
+# Packet normalisation.
+# This keeps packet parsing small and explicit so multiple contributors can
+# quickly understand what the app accepts.
+_STAGE_ALIASES = {
+    "light": "light_sleep",
+    "deep": "deep_sleep",
+}
+
+# SleepStream numeric status codes mapped to stage names used by this app.
+_STATUS_TO_STAGE = {
+    0: "unknown",
+    1: "not_worn",
+    2: "awake",
+    3: "light_sleep",
+    4: "deep_sleep",
+    5: "rem",
+}
+
+
+def _normalize_stage(stage: str) -> str | None:
+    value = stage.strip().lower()
+    value = _STAGE_ALIASES.get(value, value)
+    if value in VALID_STAGES:
+        return value
+    return None
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    return None
+
+
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def normalize_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a canonical packet dict or None if packet is irrelevant.
+
+    Canonical forms:
+    - {"kind": "start"}
+    - {"kind": "stop"}
+    - {"kind": "stage", "stage": "light_sleep"}
+    - {
+        "kind": "sleepstream", "sequence": 1, "watch_ts_sec": 1773846600,
+        "status": 5, "stage": "rem", ...
+      }
+    """
+    if not isinstance(packet, dict):
+        return None
+
+    # SleepStream packets come from the watch as telemetry updates.
+    if packet.get("t") == "sleepstream":
+        sequence = _as_int(packet.get("seq"))
+        watch_ts_sec = _as_int(packet.get("ts"))
+        status = _as_int(packet.get("status"))
+        if sequence is None or watch_ts_sec is None or status is None:
+            return None
+
+        stage = _STATUS_TO_STAGE.get(status)
+        if stage is None:
+            return None
+
+        return {
+            "kind": "sleepstream",
+            "sequence": sequence,
+            "watch_ts_sec": watch_ts_sec,
+            "status": status,
+            "stage": stage,
+            "consecutive": _as_int(packet.get("consecutive")),
+            "source_mode": _as_int(packet.get("source_mode")),
+            "movement": _as_int(packet.get("movement")),
+            "bpm": _as_int(packet.get("bpm")),
+            "sdhr": _as_float(packet.get("sdhr")),
+        }
+
+    cmd = str(packet.get("cmd", packet.get("command", ""))).strip().lower()
+    if cmd == "start":
+        return {"kind": "start"}
+    if cmd == "stop":
+        return {"kind": "stop"}
+
+    # Accept explicit stage command and simple stage updates.
+    if cmd == "stage":
+        stage = _normalize_stage(str(packet.get("stage", "")))
+        if stage:
+            return {"kind": "stage", "stage": stage}
+
+    if "stage" in packet:
+        stage = _normalize_stage(str(packet.get("stage", "")))
+        if stage:
+            return {"kind": "stage", "stage": stage}
+
+    # Also allow stage names directly in cmd for manual testing.
+    stage_from_cmd = _normalize_stage(cmd)
+    if stage_from_cmd:
+        return {"kind": "stage", "stage": stage_from_cmd}
+
+    return None
+
+
+# Stage router.
+# Each stage/stimulus module is a placeholder for future stage-specific logic.
+async def run_single_stimulus(
+    stage: str,
+    stimulus: str,
+    ble_transport,
+    db,
+    session_id: int | None,
+    log,
+) -> None:
+    """Run one stage/stimulus module and log its event.
+
+    Each stage/stimulus module owns its own logic.
+    """
+    module_name = f"stages.{stage}.{stimulus}"
+    module = importlib.import_module(module_name)
+    context = {
+        "stage": stage,
+        "stimulus": stimulus,
+        "send_watch_json": ble_transport.send_json,
+        "log": log.getChild(stimulus),
+    }
+    action, details, success = await module.run(context)
+
+    db.log_stimulus_event(
+        session_id=session_id,
+        stage=stage,
+        stimulus=stimulus,
+        action=action,
+        details=details,
+        success=success,
+    )
+    log.info("stage=%s stimulus=%s action=%s success=%s", stage, stimulus, action, success)
+
+
+async def run_stage(stage: str, ble_transport, db, session_id: int | None, log) -> None:
+    """Run all stimuli for a stage in a fixed simple order."""
+    for stimulus in VALID_STIMULI:
+        await run_single_stimulus(
+            stage=stage,
+            stimulus=stimulus,
+            ble_transport=ble_transport,
+            db=db,
+            session_id=session_id,
+            log=log,
+        )
 
 
 class MasterApp:
@@ -84,14 +246,34 @@ class MasterApp:
         if canonical is None:
             return
 
+        kind = canonical["kind"]
+
+        if kind == "sleepstream":
+            self.db.log_sleep_update(session_id=self.session_id, packet=canonical)
+
+            next_stage = canonical["stage"]
+            previous_stage = self.current_stage
+            self.current_stage = next_stage
+
+            # Watch sends regular epoch updates, so only run stage logic on
+            # transitions to avoid repeatedly triggering the same actions.
+            if self.state == "running" and next_stage != previous_stage:
+                await run_stage(
+                    stage=self.current_stage,
+                    ble_transport=self.ble,
+                    db=self.db,
+                    session_id=self.session_id,
+                    log=self.log.getChild("stage"),
+                )
+            return
+
         self.db.log_raw_packet(
             session_id=self.session_id,
-            packet_kind=canonical.get("kind"),
+            packet_kind=kind,
             stage=canonical.get("stage"),
             payload=packet,
         )
 
-        kind = canonical["kind"]
         if kind == "start":
             await self.start_session()
             return

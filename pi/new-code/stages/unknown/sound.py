@@ -10,6 +10,6 @@ async def run(context: dict) -> tuple[str, str, bool]:
     # TODO: replace this placeholder with real logic for unknown/sound.
     # context keys: stage, stimulus, send_watch_json, log
     action = "placeholder"
-    details = "TODO: implement unknown/sound behavior"
+    details = "TODO: implement unknown/sound behaviour"
     success = True
     return action, details, success
