@@ -32,11 +32,11 @@ Also accepted for convenience in test mode:
 - `{"cmd":"light"}` -> treated as `light_sleep`
 - `{"cmd":"deep"}` -> treated as `deep_sleep`
 
-Sleepstream telemetry from the watch is also accepted:
+Dreamstream telemetry from the watch is accepted:
 
-- `{"t":"sleepstream","seq":1,"ts":1773846600,"status":3,...}`
+- `{"t":"dreamstream","seq":1,"ts":1773846600,"status":3,...}`
 
-For sleepstream packets, the app:
+For dreamstream packets, the app:
 
 - stores rows in `sleep_updates`
 - maps numeric `status` to stage names used by this codebase

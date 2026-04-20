@@ -26,7 +26,7 @@ _STAGE_ALIASES = {
     "deep": "deep_sleep",
 }
 
-# SleepStream numeric status codes mapped to stage names used by this app.
+# Dreamstream numeric status codes mapped to stage names used by this app.
 _STATUS_TO_STAGE = {
     0: "unknown",
     1: "not_worn",
@@ -68,16 +68,16 @@ def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
     - {"kind": "start"}
     - {"kind": "stop"}
     - {"kind": "stage", "stage": "light_sleep"}
-    - {
-        "kind": "sleepstream", "sequence": 1, "watch_ts_sec": 1773846600,
-        "status": 5, "stage": "rem", ...
-      }
+        - {
+                "kind": "dreamstream", "sequence": 1, "watch_ts_sec": 1773846600,
+                "status": 5, "stage": "rem", ...
+            }
     """
     if not isinstance(packet, dict):
         return None
 
-    # SleepStream packets come from the watch as telemetry updates.
-    if packet.get("t") == "sleepstream":
+    # Dreamstream packets come from the watch as telemetry updates.
+    if packet.get("t") == "dreamstream":
         sequence = _as_int(packet.get("seq"))
         watch_ts_sec = _as_int(packet.get("ts"))
         status = _as_int(packet.get("status"))
@@ -89,7 +89,7 @@ def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
             return None
 
         return {
-            "kind": "sleepstream",
+            "kind": "dreamstream",
             "sequence": sequence,
             "watch_ts_sec": watch_ts_sec,
             "status": status,
@@ -248,7 +248,7 @@ class MasterApp:
 
         kind = canonical["kind"]
 
-        if kind == "sleepstream":
+        if kind == "dreamstream":
             self.db.log_sleep_update(session_id=self.session_id, packet=canonical)
 
             next_stage = canonical["stage"]
