@@ -8,9 +8,9 @@ import asyncio
 import logging
 import signal
 
-from ble import BleListener
-from constants import DEFAULT_BPM, MAX_BPM, MIN_BPM, STAGES
-from outputs import Outputs
+from old.sleep_demo_modular.ble import BleListener
+from old.sleep_demo_modular.constants import DEFAULT_BPM, MAX_BPM, MIN_BPM, STAGES
+from old.sleep_demo_modular.outputs import Outputs
 
 
 def clamp(v: float, lo: float, hi: float) -> float:

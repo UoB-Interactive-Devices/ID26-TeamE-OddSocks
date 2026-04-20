@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from withings_import import load_withings_hr, load_withings_nights_summary, load_withings_sleep
+from old.sleep_detection.bangle_sleep_stream.receiver.withings_import import load_withings_hr, load_withings_nights_summary, load_withings_sleep
 
 
 STAGE_ORDER = ["awake", "light", "deep", "rem"]

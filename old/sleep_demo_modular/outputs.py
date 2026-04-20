@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 
-from led_driver import LedDriver
-from motor_driver import MotorDriver
-from nebuliser_driver import NebuliserDriver
-from puredata_client import PureDataClient
+from old.sleep_demo_modular.led_driver import LedDriver
+from old.sleep_demo_modular.motor_driver import MotorDriver
+from old.sleep_demo_modular.nebuliser_driver import NebuliserDriver
+from old.sleep_demo_modular.puredata_client import PureDataClient
 
 
 class Outputs:

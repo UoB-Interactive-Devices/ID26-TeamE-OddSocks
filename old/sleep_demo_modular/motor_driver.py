@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from constants import MOTOR_PIN, MOTOR_PWM_HZ
+from old.sleep_demo_modular.constants import MOTOR_PIN, MOTOR_PWM_HZ
 
 try:
     import lgpio

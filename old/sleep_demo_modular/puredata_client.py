@@ -6,7 +6,7 @@ import socket
 import subprocess
 from pathlib import Path
 
-from constants import (
+from old.sleep_demo_modular.constants import (
     PUREDATA_COMMAND,
     PUREDATA_ENABLED,
     PUREDATA_UDP_HOST,

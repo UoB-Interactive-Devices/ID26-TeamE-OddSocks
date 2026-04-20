@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from constants import NEBULISER_PIN, NEB_ACTIVE_HIGH
+from old.sleep_demo_modular.constants import NEBULISER_PIN, NEB_ACTIVE_HIGH
 
 try:
     import RPi.GPIO as GPIO

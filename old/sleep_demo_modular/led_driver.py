@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from constants import LED_COUNT, LED_PIN_NAME
+from old.sleep_demo_modular.constants import LED_COUNT, LED_PIN_NAME
 
 try:
     import board

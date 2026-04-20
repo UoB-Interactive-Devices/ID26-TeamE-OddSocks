@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from constants import BLE_CONNECT_TIMEOUT_S, BLE_NAME_PREFIX, BLE_SCAN_TIMEOUT_S, UART_TX_UUID
+from old.sleep_demo_modular.constants import BLE_CONNECT_TIMEOUT_S, BLE_NAME_PREFIX, BLE_SCAN_TIMEOUT_S, UART_TX_UUID
 
 try:
     from bleak import BleakClient, BleakScanner
