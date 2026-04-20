@@ -30,21 +30,31 @@ async def async_main(args: argparse.Namespace) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     #Database is within the db file, MasterApp is within the ble_transport file
+    #More detail within those files
     db = Database(db_path=db_path)
     app = MasterApp(db=db, log=logging.getLogger("sleep_pi_core"))
 
+    #event loop is how the program is async in the first place
+    #This returns and gets an active loop for later
     loop = asyncio.get_running_loop()
+
+    #We imported signal above, it basically
+    #It's more async stuff, it lets us have the keyboard interrupt later down, that's basically what SIGINT and SIGTERM are)
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
+            #Essentially error control, with the signal to stop the events as positional arguments within sig
+            #Needing async stuff means most of main is kinda just one big debug function tbh
             loop.add_signal_handler(sig, app.stop_event.set)
         except NotImplementedError:
             pass
 
     if args.cli_test:
+        #See more in app
         await app.run_cli_test_mode()
         await app.shutdown()
         return
 
+    #You know how Go has wait points so no parts of the program rush ahead? This is basically that
     await app.run(enable_ble=not args.no_ble)
 
 
