@@ -37,7 +37,7 @@ _STATUS_TO_STAGE = {
 }
 
 
-def _normalize_stage(stage: str) -> str | None:
+def _normalise_stage(stage: str) -> str | None:
     value = stage.strip().lower()
     value = _STAGE_ALIASES.get(value, value)
     if value in VALID_STAGES:
@@ -61,7 +61,7 @@ def _as_float(value: Any) -> float | None:
     return None
 
 
-def normalize_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
+def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
     """Return a canonical packet dict or None if packet is irrelevant.
 
     Canonical forms:
@@ -109,17 +109,17 @@ def normalize_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
 
     # Accept explicit stage command and simple stage updates.
     if cmd == "stage":
-        stage = _normalize_stage(str(packet.get("stage", "")))
+        stage = _normalise_stage(str(packet.get("stage", "")))
         if stage:
             return {"kind": "stage", "stage": stage}
 
     if "stage" in packet:
-        stage = _normalize_stage(str(packet.get("stage", "")))
+        stage = _normalise_stage(str(packet.get("stage", "")))
         if stage:
             return {"kind": "stage", "stage": stage}
 
     # Also allow stage names directly in cmd for manual testing.
-    stage_from_cmd = _normalize_stage(cmd)
+    stage_from_cmd = _normalise_stage(cmd)
     if stage_from_cmd:
         return {"kind": "stage", "stage": stage_from_cmd}
 
@@ -242,7 +242,7 @@ class MasterApp:
             await self.stop_session(reason="disconnect_timeout")
 
     async def handle_packet(self, packet: dict) -> None:
-        canonical = normalize_packet(packet)
+        canonical = normalise_packet(packet)
         if canonical is None:
             return
 
