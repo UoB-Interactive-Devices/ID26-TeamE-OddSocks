@@ -17,13 +17,24 @@ from typing import Any
 
 
 class Database:
+    # We grab file path location later, so we need a default
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
+        # Creating a database, there's a lot of sleep data we need to store
         self.conn = sqlite3.connect(self.db_path)
+        # I'll be so fr I just found this line online, it's an efficiency thing
+        # More details here harlesleifer.com/blog/going-fast-with-sqlite-and-python/
         self.conn.execute("PRAGMA journal_mode=WAL")
+        # schema is validation in SQL formats
         self._init_schema()
 
     def _init_schema(self) -> None:
+        # SQL format moment
+        # Creates the table only if one doesn't already exist
+        # This one is for the dedicated sleep sessions
+        # Makes our columns not repeat their ID
+        # Start and end times, we need those for obvious sleep reasons
+        # stop_reason tells you why the code executed correctly, whether naturally or from us ending it (which we can do)
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS sessions (
@@ -34,6 +45,8 @@ class Database:
             )
             """
         )
+        #This one is for the packets we recieve from the ble
+        #We get the time, the type of packet and the data from the json
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS raw_packets (
@@ -47,6 +60,7 @@ class Database:
             )
             """
         )
+        #This one for stimulus, hopefully it's all self explanatory
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS stimulus_events (
@@ -62,6 +76,7 @@ class Database:
             )
             """
         )
+        #The actual readings, prob the most important one
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS sleep_updates (
@@ -81,19 +96,24 @@ class Database:
             )
             """
         )
+        #makin the database
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_raw_packets_session ON raw_packets(session_id)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_stimulus_events_session ON stimulus_events(session_id)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sleep_updates_session ON sleep_updates(session_id)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sleep_updates_watch_ts ON sleep_updates(watch_ts_sec)")
         self.conn.commit()
 
+
+    #The close function closes the connection it turns out
     def close(self) -> None:
         self.conn.close()
 
     @staticmethod
+    #For getting the current time
     def _now_utc() -> str:
         return datetime.now(timezone.utc).isoformat()
 
+    #Adds a new row within the session table
     def start_session(self) -> int:
         cursor = self.conn.execute(
             "INSERT INTO sessions (start_ts_utc) VALUES (?)",
@@ -102,6 +122,7 @@ class Database:
         self.conn.commit()
         return int(cursor.lastrowid)
 
+    #And then this ends the session and sends the time back
     def stop_session(self, session_id: int, reason: str) -> None:
         self.conn.execute(
             "UPDATE sessions SET end_ts_utc = ?, stop_reason = ? WHERE id = ?",
@@ -109,6 +130,8 @@ class Database:
         )
         self.conn.commit()
 
+
+   #This one is for the raw packet data obv, it's a lil ugly but its a very simple function that just has a lot of preset types
     def log_raw_packet(self, session_id: int | None, packet_kind: str | None, stage: str | None, payload: dict[str, Any]) -> None:
         self.conn.execute(
             """
@@ -119,6 +142,7 @@ class Database:
         )
         self.conn.commit()
 
+    #I mean these have a few lines but they're all kinda just, getting the data and put it in the database, it's just SQL being ugly
     def log_sleep_update(self, session_id: int | None, packet: dict[str, Any]) -> None:
         self.conn.execute(
             """
@@ -142,6 +166,8 @@ class Database:
         )
         self.conn.commit()
 
+
+    #The final one for stimulus, more data types, more commits, more SQL
     def log_stimulus_event(
         self,
         session_id: int | None,
