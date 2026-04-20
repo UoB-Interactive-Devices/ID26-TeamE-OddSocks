@@ -19,6 +19,18 @@
       value: !!settings.preferHRM,
       onchange: function (v) { settings.preferHRM = v; save(); }
     },
+    "Epoch Len": {
+      value: settings.epochLen | 0,
+      min: 30, max: 90, step: 15,
+      format: function (v) { return v + "s"; },
+      onchange: function (v) { settings.epochLen = v | 0; save(); }
+    },
+    "REM Latency": {
+      value: (settings.remLatency | 0),
+      min: 30, max: 120, step: 10,
+      format: function (v) { return v + "m"; },
+      onchange: function (v) { settings.remLatency = v | 0; save(); }
+    },
     "Deep Th": {
       value: settings.deepTh | 0,
       min: 20, max: 400, step: 5,
