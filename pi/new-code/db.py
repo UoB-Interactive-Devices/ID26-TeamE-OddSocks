@@ -1,11 +1,3 @@
-"""Minimal SQLite helper.
-
-The database is intentionally simple:
-- sessions: one row per night session
-- raw_packets: every accepted inbound packet
-- sleep_updates: structured sleepstream packets from the watch
-- stimulus_events: every output action attempt
-"""
 
 from __future__ import annotations
 
