@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10173D"/>
+      <stop offset="45%" stop-color="#1A2B86"/>
+      <stop offset="100%" stop-color="#0D7D8C"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="52%" r="58%">
+      <stop offset="0%" stop-color="#D8FAFF" stop-opacity="1"/>
+      <stop offset="50%" stop-color="#8EDCFF" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#65B8FF" stop-opacity="0.28"/>
+    </radialGradient>
+    <linearGradient id="wave1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8A7EFF"/>
+      <stop offset="100%" stop-color="#72F2FF"/>
+    </linearGradient>
+    <linearGradient id="wave2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FF8ED1"/>
+      <stop offset="100%" stop-color="#90F8FF"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <g filter="url(#glow)">
+    <circle cx="128" cy="116" r="56" fill="#FFE8A3"/>
+    <circle cx="151" cy="100" r="56" fill="url(#bg)"/>
+  </g>
+
+  <g fill="#FFFFFF" opacity="0.92">
+    <circle cx="372" cy="80" r="4"/>
+    <circle cx="413" cy="114" r="3"/>
+    <circle cx="455" cy="153" r="3"/>
+    <circle cx="328" cy="141" r="2.5"/>
+    <circle cx="268" cy="84" r="2.5"/>
+    <circle cx="94" cy="182" r="2"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <circle cx="256" cy="262" r="74" fill="url(#halo)"/>
+    <circle cx="256" cy="262" r="74" fill="none" stroke="#D6F6FF" stroke-opacity="0.82" stroke-width="4"/>
+    <circle cx="256" cy="262" r="50" fill="none" stroke="#EDFDFF" stroke-opacity="0.55" stroke-width="2"/>
+  </g>
+
+  <path d="M60 324 C128 288, 188 348, 256 324 C324 300, 384 350, 452 324"
+        fill="none" stroke="url(#wave1)" stroke-width="10" stroke-linecap="round" opacity="0.96" filter="url(#glow)"/>
+  <path d="M50 374 C118 338, 196 402, 268 372 C340 342, 402 392, 462 366"
+        fill="none" stroke="url(#wave2)" stroke-width="8" stroke-linecap="round" opacity="0.91" filter="url(#glow)"/>
+
+  <g fill="#FFE9FF" opacity="0.96">
+    <circle cx="229" cy="242" r="3"/>
+    <circle cx="282" cy="248" r="2.5"/>
+    <circle cx="247" cy="286" r="2.5"/>
+    <circle cx="289" cy="280" r="2"/>
+  </g>
+</svg>
