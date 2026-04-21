@@ -18,9 +18,7 @@ DISCONNECT_TIMEOUT_S = 15 * 60
 VALID_STAGES = ["unknown", "not_worn", "awake", "light_sleep", "deep_sleep", "rem"]
 VALID_STIMULI = ["sound", "smell", "light", "pi_motor", "watch_haptic"]
 
-# Packet normalisation.
-# This keeps packet parsing small and explicit so multiple contributors can
-# quickly understand what the app accepts.
+# Packet normalisation, kept fairly simple for scope reasons
 _STAGE_ALIASES = {
     "light": "light_sleep",
     "deep": "deep_sleep",
@@ -37,7 +35,9 @@ _STATUS_TO_STAGE = {
 }
 
 
+#
 def _normalise_stage(stage: str) -> str | None:
+    #Makes the string have all lowercase and no spaces for normalisation, then matches it to a sleep state
     value = stage.strip().lower()
     value = _STAGE_ALIASES.get(value, value)
     if value in VALID_STAGES:
@@ -46,6 +46,7 @@ def _normalise_stage(stage: str) -> str | None:
 
 
 def _as_int(value: Any) -> int | None:
+    #simple enough, a boolean that checks if a value given is an int through the any datatype we imported
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -54,6 +55,7 @@ def _as_int(value: Any) -> int | None:
 
 
 def _as_float(value: Any) -> float | None:
+    #same thing
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
