@@ -51,6 +51,17 @@ pip install -r requirements.txt
 python main.py --debug
 ```
 
+Debug flags:
+
+- `--debug`: app-level debug logs (received/sent packets, packet parsing, stage transitions).
+- `--bleak-debug`: full verbose Bleak/backend logs (very noisy, use only when needed).
+
+Example with full backend BLE debug:
+
+```bash
+python main.py --debug --bleak-debug
+```
+
 CLI test mode without BLE:
 
 ```bash

@@ -104,8 +104,10 @@ class BleTransport:
                     try:
                         payload = json.loads(line)
                     except json.JSONDecodeError:
+                        self.log.debug("BLE rx malformed JSON line ignored: %s", line)
                         continue
                     if isinstance(payload, dict):
+                        self.log.debug("BLE rx packet: %s", payload)
                         asyncio.create_task(self.on_packet(payload))
 
             await client.start_notify(UART_TX_UUID, on_notify)
@@ -128,11 +130,13 @@ class BleTransport:
 
     async def send_json(self, payload: dict[str, Any]) -> bool:
         if not self.connected or self._client is None:
+            self.log.debug("BLE tx skipped (not connected): %s", payload)
             return False
 
         packet = (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8")
         async with self._write_lock:
             await self._client.write_gatt_char(UART_RX_UUID, packet, response=False)
+        self.log.debug("BLE tx packet: %s", payload)
         return True
 
     def request_stop(self) -> None:

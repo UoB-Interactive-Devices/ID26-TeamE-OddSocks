@@ -194,6 +194,7 @@ class MasterApp:
         )
 
     async def _on_ble_packet(self, packet: dict) -> None:
+        self.log.debug("app rx raw packet: %s", packet)
         await self.packet_queue.put(packet)
 
     async def _on_ble_connected(self) -> None:
@@ -244,9 +245,11 @@ class MasterApp:
     async def handle_packet(self, packet: dict) -> None:
         canonical = normalise_packet(packet)
         if canonical is None:
+            self.log.debug("app ignored packet (unrecognised): %s", packet)
             return
 
         kind = canonical["kind"]
+        self.log.debug("app canonical packet kind=%s payload=%s", kind, canonical)
 
         if kind == "dreamstream":
             self.db.log_sleep_update(session_id=self.session_id, packet=canonical)
@@ -254,6 +257,14 @@ class MasterApp:
             next_stage = canonical["stage"]
             previous_stage = self.current_stage
             self.current_stage = next_stage
+            self.log.debug(
+                "dreamstream update seq=%s status=%s stage=%s prev_stage=%s session_id=%s",
+                canonical.get("sequence"),
+                canonical.get("status"),
+                next_stage,
+                previous_stage,
+                self.session_id,
+            )
 
             # Watch sends regular epoch updates, so only run stage logic on
             # transitions to avoid repeatedly triggering the same actions.
