@@ -157,7 +157,7 @@ async def run_single_stimulus(
 
 
 async def run_stage(stage: str, ble_transport, db, session_id: int | None, log) -> None:
-    """Run all stimuli for a stage in a fixed simple order."""
+    #Run all stimuli for a stage in a fixed order, see above
     for stimulus in VALID_STIMULI:
         await run_single_stimulus(
             stage=stage,
@@ -170,7 +170,9 @@ async def run_stage(stage: str, ble_transport, db, session_id: int | None, log) 
 
 
 class MasterApp:
+    #The primary core of the program, most of the other pieces of code exist as prerequisites for this running asyncronously
     def __init__(self, db: Database, log):
+        #Initialising itself with the values passed in the intial main call, and sets up the async cues
         self.db = db
         self.log = log
 
@@ -189,8 +191,10 @@ class MasterApp:
         )
 
     async def _on_ble_packet(self, packet: dict) -> None:
+        #packet_queue is defined above as the queues in the dict, used specifically for await
         await self.packet_queue.put(packet)
 
+    #The following two are obvious
     async def _on_ble_connected(self) -> None:
         self.log.info("ble connected")
 
