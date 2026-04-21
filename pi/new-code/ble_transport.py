@@ -65,6 +65,7 @@ class BleTransport:
             await self.stop_event.wait()
             return
 
+        #These functions are defined below
         while not self.stop_event.is_set():
             device = await self._scan_one()
             if device is None:
@@ -76,6 +77,7 @@ class BleTransport:
                 await asyncio.sleep(BLE_RETRY_SLEEP_S)
 
     async def _scan_one(self):
+        #Scan for the device, just a connection algo basically
         found = await BleakScanner.discover(return_adv=True, timeout=BLE_SCAN_TIMEOUT_S)
         for device, adv in found.values():
             name = device.name or adv.local_name or ""
@@ -85,6 +87,7 @@ class BleTransport:
         return None
 
     async def _connect_and_listen(self, device) -> None:
+        #Has the functions to disconnect and timeout from the watch connection
         disconnected = asyncio.Event()
         buffer = ""
 
@@ -98,24 +101,32 @@ class BleTransport:
             self.log.info("BLE connected: %s", getattr(device, "address", "unknown"))
 
             def on_notify(_sender, data):
+                #This is all dealing with packets, the buffer is here because the json data isn't always in a consistent format
                 nonlocal buffer
                 buffer += bytes(data).decode("utf-8", errors="ignore")
 
                 # We only support newline-delimited JSON for simplicity.
                 while "\n" in buffer:
+                    #This all processes each individual json, cuz the data can come in seperate lines and the like
+
                     line, buffer = buffer.split("\n", 1)
                     line = line.strip()
                     if not line:
+                        #So we skip empty lines
                         continue
                     try:
+                        #This is try so that noise in the json can be discarded
                         payload = json.loads(line)
                     except json.JSONDecodeError:
                         continue
                     if isinstance(payload, dict):
+                        #Thi is set as a background task, async and all that
                         asyncio.create_task(self.on_packet(payload))
 
             await client.start_notify(UART_TX_UUID, on_notify)
 
+            #Just a stopping function that can communicate with the running tasks.
+            #There's two here cuz there's two seperate functions that are waiting to stop, so once one activates both need to be stopped
             stop_wait = asyncio.create_task(self.stop_event.wait())
             disc_wait = asyncio.create_task(disconnected.wait())
             done, pending = await asyncio.wait({stop_wait, disc_wait}, return_when=asyncio.FIRST_COMPLETED)
@@ -124,6 +135,8 @@ class BleTransport:
 
             await client.stop_notify(UART_TX_UUID)
 
+
+            #This is for updating the internal state of the device
             self.connected = False
             self.last_disconnect_monotonic = time.monotonic()
             self._client = None
@@ -135,7 +148,7 @@ class BleTransport:
     async def send_json(self, payload: dict[str, Any]) -> bool:
         if not self.connected or self._client is None:
             return False
-
+        #As long as the connection is secure it writes the to the BLE data and locks it so it doesn't concurrently write things by mistake
         packet = (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8")
         async with self._write_lock:
             await self._client.write_gatt_char(UART_RX_UUID, packet, response=False)
