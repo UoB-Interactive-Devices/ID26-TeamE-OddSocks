@@ -64,17 +64,9 @@ def _as_float(value: Any) -> float | None:
 
 
 def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
-    """Return a canonical packet dict or None if packet is irrelevant.
+    #This returns a canonical packet dict or None if packet is irrelevant.
+    #Essentially this infers what type of db this packet refers to, then places it in the right location
 
-    Canonical forms:
-    - {"kind": "start"}
-    - {"kind": "stop"}
-    - {"kind": "stage", "stage": "light_sleep"}
-    - {
-        "kind": "sleepstream", "sequence": 1, "watch_ts_sec": 1773846600,
-        "status": 5, "stage": "rem", ...
-      }
-    """
     if not isinstance(packet, dict):
         return None
 
@@ -102,7 +94,7 @@ def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
             "bpm": _as_int(packet.get("bpm")),
             "sdhr": _as_float(packet.get("sdhr")),
         }
-
+    #parses whether the session needs to continue running
     cmd = str(packet.get("cmd", packet.get("command", ""))).strip().lower()
     if cmd == "start":
         return {"kind": "start"}
@@ -138,10 +130,9 @@ async def run_single_stimulus(
     session_id: int | None,
     log,
 ) -> None:
-    """Run one stage/stimulus module and log its event.
+    #Run one stage/stimulus module and log its event.
+    #Each stage/stimulus module owns its own logic so we process them seperately
 
-    Each stage/stimulus module owns its own logic.
-    """
     module_name = f"stages.{stage}.{stimulus}"
     module = importlib.import_module(module_name)
     context = {
@@ -150,6 +141,7 @@ async def run_single_stimulus(
         "send_watch_json": ble_transport.send_json,
         "log": log.getChild(stimulus),
     }
+    #async await and all that
     action, details, success = await module.run(context)
 
     db.log_stimulus_event(
@@ -160,6 +152,7 @@ async def run_single_stimulus(
         details=details,
         success=success,
     )
+    #Print so we can check things are actually working
     log.info("stage=%s stimulus=%s action=%s success=%s", stage, stimulus, action, success)
 
 
