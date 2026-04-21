@@ -5,14 +5,12 @@
   "version": "0.01",
   "author": "UoB Team E",
   "description": "Sleep tracking and REM detection for Bangle.js 2. Monitoring features extraction and background classification.",
+  "icon": "dreamstream.png",
+  "type": "app",
   "tags": "health,sleep,utility",
+  "sortorder": -1,
   "supports": ["BANGLEJS2"],
-  "readme": "README.md",
   "storage": [
-    {
-      "name": "dreamstream.info",
-      "content": "{\"id\":\"dreamstream\",\"name\":\"Dreamstream\",\"src\":\"dreamstream.app.js\",\"type\":\"app\",\"icon\":\"dreamstream.img\",\"sortorder\":-1}"
-    },
     {
       "name": "dreamstream.app.js",
       "url": "dreamstream.app.js"
