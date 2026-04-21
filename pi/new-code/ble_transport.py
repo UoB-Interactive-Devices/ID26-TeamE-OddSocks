@@ -118,9 +118,11 @@ class BleTransport:
                         #This is try so that noise in the json can be discarded
                         payload = json.loads(line)
                     except json.JSONDecodeError:
+                        self.log.debug("BLE rx malformed JSON line ignored: %s", line)
                         continue
                     if isinstance(payload, dict):
-                        #Thi is set as a background task, async and all that
+                        self.log.debug("BLE rx packet: %s", payload)
+                        #This is set as a background task, async and all that
                         asyncio.create_task(self.on_packet(payload))
 
             await client.start_notify(UART_TX_UUID, on_notify)
@@ -147,11 +149,13 @@ class BleTransport:
 
     async def send_json(self, payload: dict[str, Any]) -> bool:
         if not self.connected or self._client is None:
+            self.log.debug("BLE tx skipped (not connected): %s", payload)
             return False
         #As long as the connection is secure it writes the to the BLE data and locks it so it doesn't concurrently write things by mistake
         packet = (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8")
         async with self._write_lock:
             await self._client.write_gatt_char(UART_RX_UUID, packet, response=False)
+        self.log.debug("BLE tx packet: %s", payload)
         return True
 
     #Obvious, stops the event, breaks the while loop

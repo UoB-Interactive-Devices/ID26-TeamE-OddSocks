@@ -32,11 +32,11 @@ Also accepted for convenience in test mode:
 - `{"cmd":"light"}` -> treated as `light_sleep`
 - `{"cmd":"deep"}` -> treated as `deep_sleep`
 
-Sleepstream telemetry from the watch is also accepted:
+Dreamstream telemetry from the watch is accepted:
 
-- `{"t":"sleepstream","seq":1,"ts":1773846600,"status":3,...}`
+- `{"t":"dreamstream","seq":1,"ts":1773846600,"status":3,...}`
 
-For sleepstream packets, the app:
+For dreamstream packets, the app:
 
 - stores rows in `sleep_updates`
 - maps numeric `status` to stage names used by this codebase
@@ -49,6 +49,17 @@ For sleepstream packets, the app:
 cd pi/new-code
 pip install -r requirements.txt
 python main.py --debug
+```
+
+Debug flags:
+
+- `--debug`: app-level debug logs (received/sent packets, packet parsing, stage transitions).
+- `--bleak-debug`: full verbose Bleak/backend logs (very noisy, use only when needed).
+
+Example with full backend BLE debug:
+
+```bash
+python main.py --debug --bleak-debug
 ```
 
 CLI test mode without BLE:

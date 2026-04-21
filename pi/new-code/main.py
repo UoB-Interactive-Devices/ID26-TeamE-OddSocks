@@ -21,8 +21,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--db-path", default=str(DEFAULT_DB_PATH), help="SQLite database path")
     parser.add_argument("--no-ble", action="store_true", help="Disable BLE and use local test flow")
     parser.add_argument("--cli-test", action="store_true", help="Run interactive CLI test mode")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--debug", action="store_true", help="Enable app debug logs (packets/state), without noisy BLE backend logs")
+    parser.add_argument("--bleak-debug", action="store_true", help="Enable verbose Bleak/backend debug logs")
     return parser.parse_args()
+
+
+def configure_logging(args: argparse.Namespace) -> None:
+    # Keep root logger at INFO so third-party libraries stay quiet by default.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+    app_level = logging.DEBUG if args.debug else logging.INFO
+    logging.getLogger("sleep_pi_core").setLevel(app_level)
+
+    # Bleak logs are very verbose; only enable when explicitly requested.
+    bleak_level = logging.DEBUG if args.bleak_debug else logging.WARNING
+    logging.getLogger("bleak").setLevel(bleak_level)
 
 
 async def async_main(args: argparse.Namespace) -> None:
@@ -63,11 +79,7 @@ async def async_main(args: argparse.Namespace) -> None:
 def main() -> None:
     #parse_args is just prerequisite arguments you can put in for like, debugging and the like
     args = parse_args()
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
+    configure_logging(args)
     #try is used in case of an error, and is used here so we can interrupt the program running with a Keyboard Interrupt
     #The interrupt is Ctrl + C
     try:

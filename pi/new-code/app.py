@@ -24,7 +24,7 @@ _STAGE_ALIASES = {
     "deep": "deep_sleep",
 }
 
-# SleepStream numeric status codes mapped to stage names used by this app.
+# Dreamstream numeric status codes mapped to stage names used by this app.
 _STATUS_TO_STAGE = {
     0: "unknown",
     1: "not_worn",
@@ -64,14 +64,25 @@ def _as_float(value: Any) -> float | None:
 
 
 def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a canonical packet dict or None if packet is irrelevant.
+
+    Canonical forms:
+    - {"kind": "start"}
+    - {"kind": "stop"}
+    - {"kind": "stage", "stage": "light_sleep"}
+        - {
+                "kind": "dreamstream", "sequence": 1, "watch_ts_sec": 1773846600,
+                "status": 5, "stage": "rem", ...
+            }
+    """
     #This returns a canonical packet dict or None if packet is irrelevant.
     #Essentially this infers what type of db this packet refers to, then places it in the right location
 
     if not isinstance(packet, dict):
         return None
 
-    # SleepStream packets come from the watch as telemetry updates.
-    if packet.get("t") == "sleepstream":
+    # Dreamstream packets come from the watch as telemetry updates.
+    if packet.get("t") == "dreamstream":
         sequence = _as_int(packet.get("seq"))
         watch_ts_sec = _as_int(packet.get("ts"))
         status = _as_int(packet.get("status"))
@@ -83,7 +94,7 @@ def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
             return None
 
         return {
-            "kind": "sleepstream",
+            "kind": "dreamstream",
             "sequence": sequence,
             "watch_ts_sec": watch_ts_sec,
             "status": status,
@@ -191,6 +202,7 @@ class MasterApp:
         )
 
     async def _on_ble_packet(self, packet: dict) -> None:
+        self.log.debug("app rx raw packet: %s", packet)
         #packet_queue is defined above as the queues in the dict, used specifically for await
         await self.packet_queue.put(packet)
 
@@ -253,18 +265,28 @@ class MasterApp:
 
         canonical = normalise_packet(packet)
         if canonical is None:
+            self.log.debug("app ignored packet (unrecognised): %s", packet)
             #If the packet is not processed through the normallisation correctly, ignore it
             return
 
         #Reminder that Kind is the type of database the packet should be routed to
         kind = canonical["kind"]
+        self.log.debug("app canonical packet kind=%s payload=%s", kind, canonical)
 
-        if kind == "sleepstream":
+        if kind == "dreamstream":
             self.db.log_sleep_update(session_id=self.session_id, packet=canonical)
             #Assinging the current stage, creating a clear through line of each packet
             next_stage = canonical["stage"]
             previous_stage = self.current_stage
             self.current_stage = next_stage
+            self.log.debug(
+                "dreamstream update seq=%s status=%s stage=%s prev_stage=%s session_id=%s",
+                canonical.get("sequence"),
+                canonical.get("status"),
+                next_stage,
+                previous_stage,
+                self.session_id,
+            )
 
             # Watch sends regular epoch updates, so only run stage logic on
             # transitions to avoid repeatedly triggering the same actions.
