@@ -23,17 +23,21 @@ BLE_RETRY_SLEEP_S = 2.0
 UART_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 UART_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 
+#Many environments don't need or straight up cant install bleak, if it can't this lets the program still run
 try:
     from bleak import BleakClient, BleakScanner
 except ImportError:  # pragma: no cover
     BleakClient = None
     BleakScanner = None
 
+#async stuff, we need to check if this stuff actually can be called
+#Got it from here stackoverflow.com/questions/49360480/python-type-hinting-for-async-function-as-function-argument
 PacketCallback = Callable[[dict[str, Any]], Awaitable[None]]
 SignalCallback = Callable[[], Awaitable[None]]
 
 
 class BleTransport:
+    #There's a lot that needs to be defined here as our packets have a lot of detail on them, and we initialise with any known values
     def __init__(
         self,
         on_packet: PacketCallback,
@@ -53,6 +57,8 @@ class BleTransport:
         self._client = None
         self._write_lock = asyncio.Lock()
 
+    #If running this from most IDE's, this message will come up. This lets us know the program actually works without having to set up bleak
+    #Otherwise as long as we haven't recieved a command to stop
     async def run_forever(self) -> None:
         if BleakClient is None or BleakScanner is None:
             self.log.warning("Bleak is not installed; BLE mode disabled")
@@ -135,5 +141,6 @@ class BleTransport:
             await self._client.write_gatt_char(UART_RX_UUID, packet, response=False)
         return True
 
+    #Obvious, stops the event, breaks the while loop
     def request_stop(self) -> None:
         self.stop_event.set()
