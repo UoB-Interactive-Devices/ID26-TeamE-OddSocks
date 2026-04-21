@@ -220,9 +220,11 @@ class MasterApp:
                     pass
 
                 await self._check_disconnect_timeout(enable_ble)
+        #We don't actually use it much, but this is the same as the try and except keywords, async stuff
         finally:
             await self.shutdown()
             if ble_task is not None:
+                #Shutting down the ble as well
                 ble_task.cancel()
                 try:
                     await ble_task
@@ -230,6 +232,7 @@ class MasterApp:
                     pass
 
     async def _check_disconnect_timeout(self, enable_ble: bool) -> None:
+        #Dealing with the disconnect drops, with various states of checking the current state of the ble
         if not enable_ble:
             return
         if self.state != "running":
@@ -241,20 +244,24 @@ class MasterApp:
         if disconnected_at is None:
             return
 
+        #For logging our disconnects from timeouts
         if time.monotonic() - disconnected_at >= DISCONNECT_TIMEOUT_S:
             self.log.warning("disconnect timeout reached, stopping session")
             await self.stop_session(reason="disconnect_timeout")
 
     async def handle_packet(self, packet: dict) -> None:
+
         canonical = normalise_packet(packet)
         if canonical is None:
+            #If the packet is not processed through the normallisation correctly, ignore it
             return
 
+        #Reminder that Kind is the type of database the packet should be routed to
         kind = canonical["kind"]
 
         if kind == "sleepstream":
             self.db.log_sleep_update(session_id=self.session_id, packet=canonical)
-
+            #Assinging the current stage, creating a clear through line of each packet
             next_stage = canonical["stage"]
             previous_stage = self.current_stage
             self.current_stage = next_stage
@@ -271,6 +278,7 @@ class MasterApp:
                 )
             return
 
+        #This is seperate so every packet thats normalised is run through *something*
         self.db.log_raw_packet(
             session_id=self.session_id,
             packet_kind=kind,
@@ -278,6 +286,7 @@ class MasterApp:
             payload=packet,
         )
 
+        #The two packet types assigned to start and stop, fairly obvious
         if kind == "start":
             await self.start_session()
             return
@@ -285,7 +294,7 @@ class MasterApp:
         if kind == "stop":
             await self.stop_session(reason="watch_stop")
             return
-
+        #For our sleep stages, gives us the transitions and updates the current stage accordingly
         if kind == "stage" and self.state == "running":
             self.current_stage = canonical["stage"]
             await run_stage(
@@ -296,6 +305,7 @@ class MasterApp:
                 log=self.log.getChild("stage"),
             )
 
+    #creating a new db session, straightforward
     async def start_session(self) -> None:
         if self.state == "running":
             return
@@ -304,7 +314,7 @@ class MasterApp:
         self.state = "running"
         self.current_stage = "unknown"
         self.log.info("session started id=%s", self.session_id)
-
+    #The same but reversed
     async def stop_session(self, reason: str) -> None:
         if self.state != "running":
             return
@@ -316,16 +326,19 @@ class MasterApp:
         self.session_id = None
         self.state = "idle"
 
+    #I mean, cmon
     async def shutdown(self) -> None:
         self.ble.request_stop()
         self.db.close()
 
     async def run_cli_test_mode(self) -> None:
-        """Simple interactive mode for local testing without watch BLE."""
+        #This mode is a way to test stuff without needing the ble
         self.log.info("CLI test mode started")
         self.log.info("commands: start, stop, stage <name>, fire <stimulus>, status, quit")
 
         while True:
+            #Gives us an interface with a variety of commands you can use to test in the command line
+            #We're kinda making our own packets, particularly start and stop session ones
             line = await asyncio.to_thread(input, "test> ")
             parts = line.strip().split()
             if not parts:
@@ -346,7 +359,7 @@ class MasterApp:
             if cmd == "stage" and len(parts) >= 2:
                 await self.handle_packet({"stage": parts[1]})
                 continue
-
+            #This one is less obvious so, this basically lets us bypass packets entierly and just jump to a sleep stage
             if cmd == "fire" and len(parts) >= 2:
                 stimulus = parts[1]
                 await run_single_stimulus(
@@ -358,9 +371,9 @@ class MasterApp:
                     log=self.log.getChild("manual_fire"),
                 )
                 continue
-
+            #Just lets us see the general state
             if cmd == "status":
                 print(f"state={self.state} session_id={self.session_id} stage={self.current_stage}")
                 continue
-
+            #And a failsafe for good measure
             self.log.info("unknown command")
