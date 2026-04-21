@@ -201,17 +201,22 @@ class MasterApp:
     async def _on_ble_disconnected(self) -> None:
         self.log.info("ble disconnected")
 
+
     async def run(self, enable_ble: bool) -> None:
+        #This primarily processes our packets as they pass through
+        #As before, we don't need the ble to be running for the program to function, so we need the cases to keep the program functional
         ble_task = None
         if enable_ble:
             ble_task = asyncio.create_task(self.ble.run_forever(), name="ble-loop")
-
+        #Layered trys, async is fun and cool. It is needed tho because stopping the system is deceptively complex
         try:
             while not self.stop_event.is_set():
                 try:
+                    #Deals with the packets in the order they arrive
                     packet = await asyncio.wait_for(self.packet_queue.get(), timeout=1.0)
                     await self.handle_packet(packet)
                 except asyncio.TimeoutError:
+                    #Some error handling, a bluetooth connector can be severed at any time after all
                     pass
 
                 await self._check_disconnect_timeout(enable_ble)
