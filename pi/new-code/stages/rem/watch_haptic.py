@@ -48,7 +48,7 @@ async def run(context: dict) -> tuple[str, str, bool]:
         rem_cycle()
     finally:
         #stop buzzing
-        1=1
+        1==1
 
     return "watch-haptic started", "NremCycle buzz bursts with minute gaps", True
 
