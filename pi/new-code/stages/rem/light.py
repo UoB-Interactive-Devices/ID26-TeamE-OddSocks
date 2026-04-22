@@ -3,7 +3,7 @@ import board
 import neopixel
 
 delayAftrRem = 3 * 60 #3mins
-NoLEDs = 3
+NoLEDs = 10
 
 def run(remCycleNo):
     #commented out for testing
