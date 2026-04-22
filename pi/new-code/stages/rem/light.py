@@ -1,11 +1,14 @@
 import time
 import board
 import neopixel
+from __future__ import annotations
+import asyncio
 
 delayAftrRem = 3 * 60 #3mins
 NoLEDs = 10
+remCycleNo = 3
 
-async def run(remCycleNo):
+async def run(context: dict) -> tuple[str, str, bool]:
     #commented out for testing
     #time.sleep(delayAftrRem)
     print("running")
@@ -14,7 +17,9 @@ async def run(remCycleNo):
     else:
         midNlateRem()
 
-def earlyRem():
+    return "light cues started", "5 or 10s brust, colour depndent on NremCycle", True
+
+async def earlyRem():
     print("executing earlyRem")
     pixels = neopixel.NeoPixel(board.D18, NoLEDs, brightness=0.01)
 
@@ -33,7 +38,7 @@ def earlyRem():
 
     pixels.fill((0, 0, 0))
 
-def midNlateRem():
+async def midNlateRem():
     print("executing midRem")
     pixels = neopixel.NeoPixel(board.D18, NoLEDs, brightness=0.01)
 
@@ -56,9 +61,3 @@ def midNlateRem():
                 time.sleep(0.002)
 
     pixels.fill((0, 0, 0))
-
-run(1)
-time.sleep(5)
-run(3)
-time.sleep(5)
-run(5)

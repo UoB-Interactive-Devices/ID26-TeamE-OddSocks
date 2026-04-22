@@ -1,20 +1,19 @@
 #figure out how to buzz watch
 import time
 import random
+from __future__ import annotations
+import asyncio
 
 CHIP = 0
 PIN = 17
-GAP_BETWEEN_BURSTS = 60    
+GAP_BETWEEN_BURSTS = 60
 
-async def run(remCycle):
-    #commented out for testing
-    #time.sleep(delayAftrRem)
-    def buzz(intensity, duration):
+async def buzz(intensity, duration):
         #start buzz at intensity
         time.sleep(duration)
         #stop buzz
 
-    def burst():
+async def burst():
         burst_duration = random.uniform(1.0, 2.0)
         elapsed = 0
         intensity = 20 
@@ -31,7 +30,7 @@ async def run(remCycle):
 
             elapsed += on_time + gap_time
 
-    def rem_cycle(bursts=remCycle, gap=GAP_BETWEEN_BURSTS):
+async def rem_cycle(bursts=remCycle, gap=GAP_BETWEEN_BURSTS):
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
             burst()
@@ -40,9 +39,15 @@ async def run(remCycle):
                 print(f"Waiting {gap}s until next burst...")
                 time.sleep(gap)
 
+async def run(context: dict) -> tuple[str, str, bool]:
+    #commented out for testing
+    #time.sleep(delayAftrRem)
+
     try:
         rem_cycle()
     finally:
         #stop buzzing
         1=1
+
+    return "watch-haptic started", "NremCycle buzz bursts with minute gaps", True
 
