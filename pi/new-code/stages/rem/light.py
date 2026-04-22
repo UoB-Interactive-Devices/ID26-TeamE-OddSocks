@@ -5,7 +5,7 @@ import neopixel
 delayAftrRem = 3 * 60 #3mins
 NoLEDs = 10
 
-def run(remCycleNo):
+async def run(remCycleNo):
     #commented out for testing
     #time.sleep(delayAftrRem)
     print("running")

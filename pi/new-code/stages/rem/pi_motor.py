@@ -7,7 +7,7 @@ PIN = 23
 delayAftrRem = 3 * 60 #3mins
 GAP_BETWEEN_BURSTS = 60    
 
-def run(remCycle):
+async def run(remCycle):
     #commented out for testing
     #time.sleep(delayAftrRem)
     h = lgpio.gpiochip_open(CHIP)
