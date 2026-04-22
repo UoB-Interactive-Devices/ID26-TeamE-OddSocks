@@ -6,7 +6,8 @@ delayAftrRem = 3 * 60 #3mins
 NoLEDs = 3
 
 def run(remCycleNo):
-    time.sleep(delayAftrRem)
+    #commented out for testing
+    #time.sleep(delayAftrRem)
     print("running")
     if remCycleNo <= 2:
         earlyRem()
@@ -57,7 +58,7 @@ def midNlateRem():
     pixels.fill((0, 0, 0))
 
 run(1)
-time.sleep(10)
+time.sleep(5)
 run(3)
-time.sleep(10)
+time.sleep(5)
 run(5)

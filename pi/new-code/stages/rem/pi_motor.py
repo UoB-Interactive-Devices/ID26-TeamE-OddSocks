@@ -4,9 +4,12 @@ import random
 
 CHIP = 0
 PIN = 23
+delayAftrRem = 3 * 60 #3mins
 GAP_BETWEEN_BURSTS = 60    
 
 def run(remCycle):
+    #commented out for testing
+    #time.sleep(delayAftrRem)
     h = lgpio.gpiochip_open(CHIP)
     lgpio.gpio_claim_output(h, PIN)
 

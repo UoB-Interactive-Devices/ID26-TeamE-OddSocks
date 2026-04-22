@@ -7,6 +7,8 @@ PIN = 17
 GAP_BETWEEN_BURSTS = 60    
 
 def run(remCycle):
+    #commented out for testing
+    #time.sleep(delayAftrRem)
     def buzz(intensity, duration):
         #start buzz at intensity
         time.sleep(duration)
