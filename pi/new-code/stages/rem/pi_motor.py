@@ -9,6 +9,8 @@ PIN = 23
 delayAftrRem = 3 * 60 #3mins
 GAP_BETWEEN_BURSTS = 60
 remCycleNo = 2
+h = lgpio.gpiochip_open(CHIP)
+lgpio.gpio_claim_output(h, PIN)
 
 async def buzz(intensity, duration):
         lgpio.tx_pwm(h, PIN, 100, intensity)
@@ -32,7 +34,7 @@ async def burst():
 
         elapsed += on_time + gap_time
 
-async def rem_cycle(bursts=remCycle, gap=GAP_BETWEEN_BURSTS):
+async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
     for i in range(bursts):
         print(f"Burst {i + 1} of {bursts}")
         burst()
@@ -44,8 +46,6 @@ async def rem_cycle(bursts=remCycle, gap=GAP_BETWEEN_BURSTS):
 async def run(context: dict) -> tuple[str, str, bool]:
     #commented out for testing
     #time.sleep(delayAftrRem)
-    h = lgpio.gpiochip_open(CHIP)
-    lgpio.gpio_claim_output(h, PIN)
 
     try:
         rem_cycle()

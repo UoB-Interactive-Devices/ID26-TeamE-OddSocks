@@ -7,6 +7,7 @@ import asyncio
 CHIP = 0
 PIN = 17
 GAP_BETWEEN_BURSTS = 60
+remCycleNo = 2
 
 async def buzz(intensity, duration):
         #start buzz at intensity
@@ -30,7 +31,7 @@ async def burst():
 
             elapsed += on_time + gap_time
 
-async def rem_cycle(bursts=remCycle, gap=GAP_BETWEEN_BURSTS):
+async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
             burst()
