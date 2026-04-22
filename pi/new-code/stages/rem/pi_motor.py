@@ -36,6 +36,8 @@ async def run(context: dict) -> tuple[str, str, bool]:
             buzz(intensity, on_time)
             time.sleep(gap_time)
 
+            elapsed += on_time + gap_time
+
     def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
