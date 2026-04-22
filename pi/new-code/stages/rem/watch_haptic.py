@@ -1,15 +1,46 @@
-"""Stage 'rem' + stimulus 'watch_haptic'.
+#figure out how to buzz watch
+import time
+import random
 
-This file owns the logic for this exact stage/stimulus combination.
-"""
+CHIP = 0
+PIN = 17
+GAP_BETWEEN_BURSTS = 60    
 
-from __future__ import annotations
+def run(remCycle):
+    def buzz(intensity, duration):
+        #start buzz at intensity
+        time.sleep(duration)
+        #stop buzz
 
+    def burst():
+        burst_duration = random.uniform(1.0, 2.0)
+        elapsed = 0
+        intensity = 20 
 
-async def run(context: dict) -> tuple[str, str, bool]:
-    # TODO: replace this placeholder with real logic for rem/watch_haptic.
-    # context keys: stage, stimulus, send_watch_json, log
-    action = "placeholder"
-    details = "TODO: implement rem/watch_haptic behaviour"
-    success = True
-    return action, details, success
+        while elapsed < burst_duration:
+            intensity = min(intensity + random.randint(8, 18), 80)
+
+            on_time = random.choice([0.2, 0.3])
+
+            gap_time = random.uniform(0.2, 0.3)
+
+            buzz(intensity, on_time)
+            time.sleep(gap_time)
+
+            elapsed += on_time + gap_time
+
+    def rem_cycle(bursts=remCycle, gap=GAP_BETWEEN_BURSTS):
+        for i in range(bursts):
+            print(f"Burst {i + 1} of {bursts}")
+            burst()
+
+            if i < bursts - 1:
+                print(f"Waiting {gap}s until next burst...")
+                time.sleep(gap)
+
+    try:
+        rem_cycle()
+    finally:
+        #stop buzzing
+        1=1
+

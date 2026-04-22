@@ -1,15 +1,48 @@
-"""Stage 'rem' + stimulus 'pi_motor'.
+import lgpio
+import time
+import random
 
-This file owns the logic for this exact stage/stimulus combination.
-"""
+CHIP = 0
+PIN = 17
+GAP_BETWEEN_BURSTS = 60    
 
-from __future__ import annotations
+def run(remCycle):
+    h = lgpio.gpiochip_open(CHIP)
+    lgpio.gpio_claim_output(h, PIN)
 
+    def buzz(intensity, duration):
+        lgpio.tx_pwm(h, PIN, 100, intensity)
+        time.sleep(duration)
+        lgpio.tx_pwm(h, PIN, 100, 0)
 
-async def run(context: dict) -> tuple[str, str, bool]:
-    # TODO: replace this placeholder with real logic for rem/pi_motor.
-    # context keys: stage, stimulus, send_watch_json, log
-    action = "placeholder"
-    details = "TODO: implement rem/pi_motor behaviour"
-    success = True
-    return action, details, success
+    def burst():
+        burst_duration = random.uniform(1.0, 2.0)
+        elapsed = 0
+        intensity = 20 
+
+        while elapsed < burst_duration:
+            intensity = min(intensity + random.randint(8, 18), 80)
+
+            on_time = random.choice([0.2, 0.3])
+
+            gap_time = random.uniform(0.2, 0.3)
+
+            buzz(intensity, on_time)
+            time.sleep(gap_time)
+
+            elapsed += on_time + gap_time
+
+    def rem_cycle(bursts=remCycle, gap=GAP_BETWEEN_BURSTS):
+        for i in range(bursts):
+            print(f"Burst {i + 1} of {bursts}")
+            burst()
+
+            if i < bursts - 1:
+                print(f"Waiting {gap}s until next burst...")
+                time.sleep(gap)
+
+    try:
+        rem_cycle()
+    finally:
+        lgpio.tx_pwm(h, PIN, 100, 0)
+        lgpio.gpiochip_close(h)
