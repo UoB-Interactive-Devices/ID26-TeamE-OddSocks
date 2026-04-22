@@ -16,6 +16,7 @@ def earlyRem():
     pixels = neopixel.NeoPixel(board.D18, NoLEDs, brightness=0.01)
 
     for cycle in range(5):
+        print(cycle)
         for b in range(0, 100):
             pixels.brightness = b / 100
             pixels.fill((255, 0, 0))
@@ -51,3 +52,9 @@ def midNlateRem():
                 time.sleep(0.002)
 
     pixels.fill((0, 0, 0))
+
+run(1)
+time.sleep(10)
+run(3)
+time.sleep(10)
+run(5)

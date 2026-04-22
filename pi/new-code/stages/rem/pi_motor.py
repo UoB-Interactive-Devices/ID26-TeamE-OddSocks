@@ -3,7 +3,7 @@ import time
 import random
 
 CHIP = 0
-PIN = 17
+PIN = 23
 GAP_BETWEEN_BURSTS = 60    
 
 def run(remCycle):
@@ -46,3 +46,9 @@ def run(remCycle):
     finally:
         lgpio.tx_pwm(h, PIN, 100, 0)
         lgpio.gpiochip_close(h)
+
+run(1)
+time.sleep(10)
+run(3)
+time.sleep(10)
+run(5)
