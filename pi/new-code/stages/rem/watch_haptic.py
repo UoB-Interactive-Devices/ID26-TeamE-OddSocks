@@ -1,7 +1,7 @@
 #figure out how to buzz watch
+from __future__ import annotations
 import time
 import random
-from __future__ import annotations
 import asyncio
 
 CHIP = 0

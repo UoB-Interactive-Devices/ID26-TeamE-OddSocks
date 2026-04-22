@@ -1,7 +1,7 @@
+from __future__ import annotations
 import time
 import board
 import neopixel
-from __future__ import annotations
 import asyncio
 
 delayAftrRem = 3 * 60 #3mins

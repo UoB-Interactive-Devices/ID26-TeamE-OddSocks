@@ -1,7 +1,7 @@
+from __future__ import annotations
 import lgpio
 import time
 import random
-from __future__ import annotations
 import asyncio
 
 CHIP = 0
