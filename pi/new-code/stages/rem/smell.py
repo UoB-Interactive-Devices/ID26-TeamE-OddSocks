@@ -20,8 +20,14 @@ MIST_PIN = 16
 _mist_task = None
 
 
-async def _run_peppermint_cycles(log):
-    log("Starting REM Peppermint mist cycles (5s ON / 25s OFF for 15 minutes)")
+async def _run_peppermint_cycles(logger):
+    def log_msg(msg, level="info"):
+        if logger and hasattr(logger, level):
+            getattr(logger, level)(msg)
+        else:
+            print(f"[{level.upper()}] {msg}")
+
+    log_msg("Starting REM Peppermint mist cycles (5s ON / 25s OFF for 15 minutes)")
     
     if GPIO is not None:
         try:
@@ -30,10 +36,10 @@ async def _run_peppermint_cycles(log):
             GPIO.setup(MIST_PIN, GPIO.OUT)
             GPIO.output(MIST_PIN, GPIO.LOW)
         except Exception as e:
-            log(f"GPIO setup failed: {e}")
+            log_msg(f"GPIO setup failed: {e}", "error")
             return
     else:
-        log("RPi.GPIO not found. Simulating REM mist cycles.")
+        log_msg("RPi.GPIO not found. Simulating REM mist cycles.")
 
     try:
         start_time = time.time()
@@ -42,41 +48,41 @@ async def _run_peppermint_cycles(log):
         
         # While current time is less than 15 minutes from start
         while (time.time() - start_time) < duration:
-            log("Scent Dispersing. (5s ON)")
+            log_msg("Scent Dispersing. (5s ON)")
             if GPIO is not None:
                 GPIO.output(MIST_PIN, GPIO.HIGH)
             
             await asyncio.sleep(5)
             
-            log("Receptor Recovery. (25s OFF)")
+            log_msg("Receptor Recovery. (25s OFF)")
             if GPIO is not None:
                 GPIO.output(MIST_PIN, GPIO.LOW)
                 
             await asyncio.sleep(25)
             
-        log("15 minutes completed. REM Peppermint turned OFF.")
+        log_msg("15 minutes completed. REM Peppermint turned OFF.")
         
     except asyncio.CancelledError:
-        log("REM smell stimulus cancelled gracefully.")
+        log_msg("REM smell stimulus cancelled gracefully.")
     except Exception as e:
-        log(f"Scent error: {e}")
+        log_msg(f"Scent error: {e}", "error")
     finally:
         if GPIO is not None:
             try:
                 GPIO.output(MIST_PIN, GPIO.LOW)
             except Exception as e:
-                log(f"Error during GPIO cleanup: {e}")
+                log_msg(f"Error during GPIO cleanup: {e}", "error")
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
     global _mist_task
-    log = context.get("log", print)
+    logger = context.get("log")
     
     # Cancel any previous task if this gets called again while already running
     if _mist_task is not None and not _mist_task.done():
         _mist_task.cancel()
         
     # Start the Peppermint cycles in the background
-    _mist_task = asyncio.create_task(_run_peppermint_cycles(log))
+    _mist_task = asyncio.create_task(_run_peppermint_cycles(logger))
 
     return "peppermint_mist_started", "Background 15 minute peppermint mist started", True
