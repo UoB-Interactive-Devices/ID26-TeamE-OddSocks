@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--db-path", default=str(DEFAULT_DB_PATH), help="SQLite database path")
     parser.add_argument("--no-ble", action="store_true", help="Disable BLE and use local test flow")
     parser.add_argument("--cli-test", action="store_true", help="Run interactive CLI test mode")
+    parser.add_argument("--cli-test-ble", action="store_true", help="Enable BLE in CLI test mode and wait for watch connection")
     parser.add_argument("--debug", action="store_true", help="Enable app debug logs (packets/state), without noisy BLE backend logs")
     parser.add_argument("--bleak-debug", action="store_true", help="Enable verbose Bleak/backend debug logs")
     return parser.parse_args()
@@ -67,8 +68,23 @@ async def async_main(args: argparse.Namespace) -> None:
             pass
 
     if args.cli_test:
-        #See more in app
+        ble_task = None
+        if args.cli_test_ble:
+            ble_task = asyncio.create_task(app.ble.run_forever(), name="ble-loop")
+            app.log.info("CLI test BLE mode: waiting for watch connection...")
+            while not app.ble.connected:
+                await asyncio.sleep(0.2)
+            app.log.info("CLI test BLE mode: watch connected")
+
         await app.run_cli_test_mode()
+
+        if ble_task is not None:
+            app.ble.request_stop()
+            ble_task.cancel()
+            try:
+                await ble_task
+            except asyncio.CancelledError:
+                pass
         await app.shutdown()
         return
 

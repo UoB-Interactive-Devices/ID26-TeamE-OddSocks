@@ -68,6 +68,18 @@ CLI test mode without BLE:
 python main.py --cli-test --no-ble --debug
 ```
 
+CLI test mode with BLE (connect first, then interactive prompt):
+
+```bash
+python main.py --cli-test --cli-test-ble --debug
+```
+
+In CLI mode:
+
+- `status` shows app state plus `ble_connected=True/False`
+- `haptic 120` sends a direct 120ms watch haptic command
+- `start` then `stage rem` runs the REM stage stimuli using the active BLE link
+
 ## Next implementation step
 
 Replace placeholder modules in `stages/` with real stage logic for each stimulus.
