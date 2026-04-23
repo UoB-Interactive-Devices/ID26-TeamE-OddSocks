@@ -17,6 +17,8 @@ BLE_NAME_PREFIX = "Bangle"
 BLE_SCAN_TIMEOUT_S = 8.0
 BLE_CONNECT_TIMEOUT_S = 20.0
 BLE_RETRY_SLEEP_S = 2.0
+BLE_WRITE_CHUNK_BYTES = 20
+BLE_WRITE_CHUNK_SLEEP_S = 0.05
 
 # Nordic UART Service, gives us unique pathways to communicate with the watch
 #The first is watch to this, the other is vice versa
@@ -159,11 +161,20 @@ class BleTransport:
         payload_json = json.dumps(payload, separators=(",", ":"))
         command = (
             "if(global.dreamstreamCmdBridge&&global.dreamstreamCmdBridge.handlePacket)"
-            f"global.dreamstreamCmdBridge.handlePacket({payload_json})\n"
+            f"global.dreamstreamCmdBridge.handlePacket({payload_json})"
+            "\n"
         )
         packet = command.encode("utf-8")
         async with self._write_lock:
-            await self._client.write_gatt_char(UART_RX_UUID, packet, response=False)
+            try:
+                #Nordic UART writes need to be split into small BLE-sized chunks
+                for start in range(0, len(packet), BLE_WRITE_CHUNK_BYTES):
+                    chunk = packet[start:start + BLE_WRITE_CHUNK_BYTES]
+                    await self._client.write_gatt_char(UART_RX_UUID, chunk, response=False)
+                    await asyncio.sleep(BLE_WRITE_CHUNK_SLEEP_S)
+            except Exception as exc:
+                self.log.warning("BLE tx failed: %s payload=%s", exc, payload)
+                return False
         self.log.debug("BLE tx packet: %s", payload)
         return True
 
