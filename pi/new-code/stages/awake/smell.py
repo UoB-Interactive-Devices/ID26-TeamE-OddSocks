@@ -18,7 +18,7 @@ try:
 except ImportError:
     GPIO = None
 
-MIST_PIN = 16
+MIST_PIN = 12
 
 async def _run_mist_cycles(logger):
     def log_msg(msg, level="info"):
