@@ -1,6 +1,5 @@
 from __future__ import annotations
 import lgpio
-import time
 import random
 import asyncio
 
@@ -12,16 +11,17 @@ remCycleNo = 2
 
 async def run(context: dict) -> tuple[str, str, bool]:
     #commented out for testing
-    #time.sleep(delayAftrRem)
+    #await asyncio.sleep(delayAftrRem)
+    #Using await means the other stage files can run during the gaps
     h = lgpio.gpiochip_open(CHIP)
     lgpio.gpio_claim_output(h, PIN)
 
-    def buzz(intensity, duration):
+    async def buzz(intensity, duration):
         lgpio.tx_pwm(h, PIN, 100, intensity)
-        time.sleep(duration)
+        await asyncio.sleep(duration)
         lgpio.tx_pwm(h, PIN, 100, 0)
 
-    def burst():
+    async def burst():
         burst_duration = random.uniform(1.0, 2.0)
         elapsed = 0
         intensity = 20 
@@ -33,22 +33,22 @@ async def run(context: dict) -> tuple[str, str, bool]:
 
             gap_time = random.uniform(0.2, 0.3)
 
-            buzz(intensity, on_time)
-            time.sleep(gap_time)
+            await buzz(intensity, on_time)
+            await asyncio.sleep(gap_time)
 
             elapsed += on_time + gap_time
 
-    def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
+    async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
-            burst()
+            await burst()
 
             if i < bursts - 1:
                 print(f"Waiting {gap}s until next burst...")
-                time.sleep(gap)
+                await asyncio.sleep(gap)
 
     try:
-        rem_cycle()
+        await rem_cycle()
     finally:
         lgpio.tx_pwm(h, PIN, 100, 0)
         lgpio.gpiochip_close(h)

@@ -31,14 +31,23 @@
 
   function buzzFrom(payload) {
     var ms = 120;
+    var strength = 1;
     if (payload && typeof payload === "object") {
       if (payload.haptic && typeof payload.haptic === "object") {
         ms = toInt(payload.haptic.ms || payload.haptic.duration || ms);
+        strength = payload.haptic.strength || payload.haptic.intensity || strength;
       }
       ms = toInt(payload.ms || payload.duration || payload.buzz || ms) || ms;
+      strength = payload.strength || payload.intensity || strength;
     }
     ms = clamp(ms, 20, 2000);
-    Bangle.buzz(ms);
+    if (typeof strength === "number" && isFinite(strength)) {
+      strength = strength > 1 ? strength / 100 : strength;
+      strength = clamp(strength, 0, 1);
+    } else {
+      strength = 1;
+    }
+    Bangle.buzz(ms, strength);
   }
 
   function handlePacket(payload) {
