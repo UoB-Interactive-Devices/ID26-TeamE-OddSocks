@@ -360,7 +360,7 @@ class MasterApp:
     async def run_cli_test_mode(self) -> None:
         #This mode is a way to test stuff without needing the ble
         self.log.info("CLI test mode started")
-        self.log.info("commands: start, stop, stage <name>, fire <stimulus>, status, quit")
+        self.log.info("commands: start, stop, stage <name>, fire <stimulus>, haptic [ms], status, quit")
 
         while True:
             #Gives us an interface with a variety of commands you can use to test in the command line
@@ -397,9 +397,25 @@ class MasterApp:
                     log=self.log.getChild("manual_fire"),
                 )
                 continue
+
+            if cmd == "haptic":
+                ms = 120
+                if len(parts) >= 2:
+                    ms = int(parts[1])
+                sent = await self.ble.send_json({
+                    "cmd": "haptic",
+                    "event": "cli_test",
+                    "haptic": {"ms": ms},
+                })
+                print(f"haptic_sent={sent} ms={ms}")
+                continue
+
             #Just lets us see the general state
             if cmd == "status":
-                print(f"state={self.state} session_id={self.session_id} stage={self.current_stage}")
+                print(
+                    f"state={self.state} session_id={self.session_id} "
+                    f"stage={self.current_stage} ble_connected={self.ble.connected}"
+                )
                 continue
             #And a failsafe for good measure
             self.log.info("unknown command")
