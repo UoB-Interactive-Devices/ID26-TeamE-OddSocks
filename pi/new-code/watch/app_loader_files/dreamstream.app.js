@@ -46,6 +46,15 @@
     return global.sleepstream;
   }
 
+  function ensureCmdBridge() {
+    if (global.dreamstreamCmdBridge && global.dreamstreamCmdBridge.listener) return;
+    try {
+      var src = Storage.read("dreamstream.cmd.boot.js");
+      if (src) eval(src);
+    } catch (e) {
+    }
+  }
+
   var cachedLastCmd = Storage.readJSON(CMD_STORE, true) || null;
 
   function getLastCmd(rt) {
@@ -158,6 +167,7 @@
   Bangle.loadWidgets();
   g.clear(true);
   Bangle.drawWidgets();
+  ensureCmdBridge();
 
   Bangle.setUI({
     mode: "custom",

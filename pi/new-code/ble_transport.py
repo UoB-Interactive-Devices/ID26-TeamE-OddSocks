@@ -114,6 +114,10 @@ class BleTransport:
                     if not line:
                         #So we skip empty lines
                         continue
+                    if line.startswith(">"):  # Watch REPL prompt prefix.
+                        line = line[1:].strip()
+                    if not line or not line.startswith("{"):
+                        continue
                     try:
                         #This is try so that noise in the json can be discarded
                         payload = json.loads(line)
@@ -152,7 +156,12 @@ class BleTransport:
             self.log.debug("BLE tx skipped (not connected): %s", payload)
             return False
         #As long as the connection is secure it writes the to the BLE data and locks it so it doesn't concurrently write things by mistake
-        packet = (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8")
+        payload_json = json.dumps(payload, separators=(",", ":"))
+        command = (
+            "if(global.dreamstreamCmdBridge&&global.dreamstreamCmdBridge.handlePacket)"
+            f"global.dreamstreamCmdBridge.handlePacket({payload_json})\n"
+        )
+        packet = command.encode("utf-8")
         async with self._write_lock:
             await self._client.write_gatt_char(UART_RX_UUID, packet, response=False)
         self.log.debug("BLE tx packet: %s", payload)

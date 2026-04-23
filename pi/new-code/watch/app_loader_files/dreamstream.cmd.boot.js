@@ -71,6 +71,7 @@
   var state = global.dreamstreamCmdBridge || {};
   if (state.listener) Bluetooth.removeListener("data", state.listener);
   state.buffer = "";
+  state.handlePacket = handlePacket;
 
   state.listener = function (chunk) {
     state.buffer += chunk;
@@ -80,6 +81,12 @@
       var line = state.buffer.slice(0, idx).trim();
       state.buffer = state.buffer.slice(idx + 1);
       if (line) {
+        var start = line.indexOf("{");
+        if (start < 0) {
+          idx = state.buffer.indexOf("\n");
+          continue;
+        }
+        line = line.slice(start);
         try {
           handlePacket(JSON.parse(line));
         } catch (e) {
