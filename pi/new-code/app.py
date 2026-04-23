@@ -144,14 +144,14 @@ async def run_single_stimulus(
     #Run one stage/stimulus module and log its event.
     #Each stage/stimulus module owns its own logic so we process them seperately
 
-    module_name = f"stages.{stage}.{stimulus}"
-    module = importlib.import_module(module_name)
     context = {
         "stage": stage,
         "stimulus": stimulus,
         "send_watch_json": ble_transport.send_json,
         "log": log.getChild(stimulus),
     }
+    module_name = f"stages.{stage}.{stimulus}"
+    module = importlib.import_module(module_name)
     #async await and all that
     action, details, success = await module.run(context)
 
@@ -168,16 +168,20 @@ async def run_single_stimulus(
 
 
 async def run_stage(stage: str, ble_transport, db, session_id: int | None, log) -> None:
-    #Run all stimuli for a stage in a fixed order, see above
-    for stimulus in VALID_STIMULI:
-        await run_single_stimulus(
-            stage=stage,
-            stimulus=stimulus,
-            ble_transport=ble_transport,
-            db=db,
-            session_id=session_id,
-            log=log,
-        )
+    #Run all stimuli for a stage at the same time, see above
+    await asyncio.gather(
+        *[
+            run_single_stimulus(
+                stage=stage,
+                stimulus=stimulus,
+                ble_transport=ble_transport,
+                db=db,
+                session_id=session_id,
+                log=log,
+            )
+            for stimulus in VALID_STIMULI
+        ]
+    )
 
 
 class MasterApp:

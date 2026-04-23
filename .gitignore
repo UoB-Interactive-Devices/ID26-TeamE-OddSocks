@@ -8,4 +8,7 @@
 .idea
 *.idea
 **/ .idea
-pi/new-code/__pycache__
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

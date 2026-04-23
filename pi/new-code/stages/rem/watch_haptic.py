@@ -1,7 +1,6 @@
 #figure out how to buzz watch
 from __future__ import annotations
 import asyncio
-import time
 import random
 
 CHIP = 0
@@ -10,16 +9,28 @@ remCycleNo = 2
 
 async def run(context: dict) -> tuple[str, str, bool]:
     #commented out for testing
-    #time.sleep(delayAftrRem)
-    def buzz(intensity, duration):
-        #start buzz at intensity
-        time.sleep(duration)
-        #stop buzz
+    #await asyncio.sleep(delayAftrRem)
+    send_watch_json = context["send_watch_json"]
+    log = context["log"]
 
-    def burst():
+    async def buzz(intensity, duration):
+        #start buzz at intensity
+        payload = {
+            "cmd": "buzz",
+            "event": "rem_detected",
+            "buzz": int(duration * 1000),
+            "intensity": intensity,
+        }
+        sent = await send_watch_json(payload)
+        await asyncio.sleep(duration)
+        #stop buzz is handled by the watch after the duration
+        return sent
+
+    async def burst():
         burst_duration = random.uniform(1.0, 2.0)
         elapsed = 0
         intensity = 20 
+        success = True
 
         while elapsed < burst_duration:
             intensity = min(intensity + random.randint(8, 18), 80)
@@ -28,25 +39,36 @@ async def run(context: dict) -> tuple[str, str, bool]:
 
             gap_time = random.uniform(0.2, 0.3)
 
-            buzz(intensity, on_time)
-            time.sleep(gap_time)
+            success = await buzz(intensity, on_time) and success
+            await asyncio.sleep(gap_time)
 
             elapsed += on_time + gap_time
 
-    def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
+        return success
+
+    async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
+        success = True
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
-            burst()
+            success = await burst() and success
 
             if i < bursts - 1:
                 print(f"Waiting {gap}s until next burst...")
-                time.sleep(gap)
+                await asyncio.sleep(gap)
+
+        return success
 
     try:
-        rem_cycle()
+        success = await rem_cycle()
+    except Exception as exc:
+        log.warning("rem/watch_haptic send failed: %s", exc)
+        return "haptic-buzz error", f"watch buzz failed: {exc}", False
     finally:
         #stop buzzing
-        1==1
+        #The watch stops itself after each buzz duration
+        pass
+
+    if not success:
+        return "haptic-buzz skipped", "watch not connected for one or more buzzes", False
 
     return "haptic-buzz started", "NremCycle buzz bursts with minute gaps", True
-
