@@ -360,7 +360,7 @@ class MasterApp:
     async def run_cli_test_mode(self) -> None:
         #This mode is a way to test stuff without needing the ble
         self.log.info("CLI test mode started")
-        self.log.info("commands: start, stop, stage <name>, fire <stimulus>, haptic [ms], status, quit")
+        self.log.info("commands: start, stop, stage <name>, fire <stimulus>, haptic [ms] [strength], status, quit")
 
         while True:
             #Gives us an interface with a variety of commands you can use to test in the command line
@@ -402,12 +402,16 @@ class MasterApp:
                 ms = 120
                 if len(parts) >= 2:
                     ms = int(parts[1])
+                haptic = {"ms": ms}
+                if len(parts) >= 3:
+                    #Strength can be 0-1 or 0-100, the watch bridge normalises it
+                    haptic["strength"] = float(parts[2])
                 sent = await self.ble.send_json({
                     "cmd": "haptic",
                     "event": "cli_test",
-                    "haptic": {"ms": ms},
+                    "haptic": haptic,
                 })
-                print(f"haptic_sent={sent} ms={ms}")
+                print(f"haptic_sent={sent} haptic={haptic}")
                 continue
 
             #Just lets us see the general state
