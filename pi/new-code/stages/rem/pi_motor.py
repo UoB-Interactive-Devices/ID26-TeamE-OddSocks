@@ -53,4 +53,4 @@ async def run(context: dict) -> tuple[str, str, bool]:
         lgpio.tx_pwm(h, PIN, 100, 0)
         lgpio.gpiochip_close(h)
 
-    return "haptic-buzz started", "NremCycle buzz bursts with minute gaps", True
+    return "pi-motor-buzz started", "NremCycle buzz bursts with minute gaps", True

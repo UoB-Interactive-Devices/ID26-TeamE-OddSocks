@@ -61,4 +61,4 @@ async def run(context: dict) -> tuple[str, str, bool]:
     else:
         await midNlateRem()
 
-    return "light cues started", "5 or 10s brust, colour depndent on NremCycle", True
+    return "light cues started", "5 or 10s burst, colour dependent on NremCycle", True

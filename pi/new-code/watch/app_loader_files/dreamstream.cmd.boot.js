@@ -35,10 +35,18 @@
     if (payload && typeof payload === "object") {
       if (payload.haptic && typeof payload.haptic === "object") {
         ms = toInt(payload.haptic.ms || payload.haptic.duration || ms);
-        strength = payload.haptic.strength || payload.haptic.intensity || strength;
+        if (payload.haptic.strength !== undefined && payload.haptic.strength !== null) {
+          strength = payload.haptic.strength;
+        } else if (payload.haptic.intensity !== undefined && payload.haptic.intensity !== null) {
+          strength = payload.haptic.intensity;
+        }
       }
       ms = toInt(payload.ms || payload.duration || payload.buzz || ms) || ms;
-      strength = payload.strength || payload.intensity || strength;
+      if (payload.strength !== undefined && payload.strength !== null) {
+        strength = payload.strength;
+      } else if (payload.intensity !== undefined && payload.intensity !== null) {
+        strength = payload.intensity;
+      }
     }
     ms = clamp(ms, 20, 2000);
     if (typeof strength === "number" && isFinite(strength)) {
