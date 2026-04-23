@@ -26,6 +26,8 @@ The parser currently accepts simple JSON forms:
 - `{"cmd":"stop"}`
 - `{"cmd":"stage","stage":"light_sleep"}`
 - `{"stage":"deep_sleep"}`
+- `{"cmd":"demo_run","stages":["awake","light_sleep","deep_sleep","rem"],"dwell_sec":0.35,"cycles":1}`
+- `{"cmd":"demo_stop"}`
 
 Also accepted for convenience in test mode:
 
@@ -79,6 +81,22 @@ In CLI mode:
 - `status` shows app state plus `ble_connected=True/False`
 - `haptic 120` sends a direct 120ms watch haptic command
 - `start` then `stage rem` runs the REM stage stimuli using the active BLE link
+- `demo_run` starts a fast scripted demo pass of all major stages
+- `demo_stop` cancels an active scripted demo
+
+## Demo mode notes
+
+`demo_run` is intended for live demos where you want one tap to run all stages without waiting for real sleep detection.
+
+- It auto-starts a session when needed.
+- It runs stimuli for each requested stage in order (`awake`, `light_sleep`, `deep_sleep`, `rem` by default).
+- It uses a `demo_fast` context so stage modules can shorten internal waits.
+
+You can also trigger individual stage runs manually with:
+
+```json
+{"cmd":"stage","stage":"rem","demo_fast":true}
+```
 
 ## Next implementation step
 
