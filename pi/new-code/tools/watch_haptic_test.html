@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Watch Haptic Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font: 14px/1.4 system-ui, sans-serif;
+      background: #111;
+      color: #eee;
+    }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 24px;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      align-items: end;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    input {
+      width: 140px;
+      padding: 8px 10px;
+      border: 1px solid #444;
+      background: #1b1b1b;
+      color: #eee;
+      border-radius: 6px;
+    }
+
+    button {
+      padding: 9px 12px;
+      border: 1px solid #555;
+      background: #222;
+      color: #eee;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    #status {
+      margin: 0 0 16px;
+      color: #9fd4ff;
+    }
+
+    #log {
+      height: 320px;
+      overflow: auto;
+      white-space: pre-wrap;
+      background: #181818;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Watch Haptic Test</h1>
+    <p id="status">Disconnected</p>
+
+    <div class="row">
+      <button id="connectBtn">Connect Watch</button>
+      <button id="disconnectBtn" disabled>Disconnect</button>
+    </div>
+
+    <div class="row">
+      <label>
+        Duration (ms)
+        <input id="msInput" type="number" min="1" step="1" value="1000">
+      </label>
+
+      <label>
+        Strength
+        <input id="strengthInput" type="number" min="0" step="0.1" placeholder="blank, 0.8, 80">
+      </label>
+
+      <button id="sendBtn" disabled>Send Haptic</button>
+    </div>
+
+    <div id="log"></div>
+  </main>
+
+  <script>
+    const NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+    const WRITE_CHUNK_BYTES = 20;
+    const WRITE_CHUNK_DELAY_MS = 50;
+
+    let device = null;
+    let server = null;
+    let txCharacteristic = null;
+    let rxCharacteristic = null;
+    let rxBuffer = "";
+
+    const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
+    const connectBtn = document.getElementById("connectBtn");
+    const disconnectBtn = document.getElementById("disconnectBtn");
+    const sendBtn = document.getElementById("sendBtn");
+    const msInput = document.getElementById("msInput");
+    const strengthInput = document.getElementById("strengthInput");
+
+    function log(message) {
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent += `[${time}] ${message}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setConnected(connected, name = "") {
+      statusEl.textContent = connected ? `Connected: ${name}` : "Disconnected";
+      connectBtn.disabled = connected;
+      disconnectBtn.disabled = !connected;
+      sendBtn.disabled = !connected;
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function writeCommand(command) {
+      const packet = new TextEncoder().encode(command);
+      for (let start = 0; start < packet.length; start += WRITE_CHUNK_BYTES) {
+        const chunk = packet.slice(start, start + WRITE_CHUNK_BYTES);
+        await rxCharacteristic.writeValueWithoutResponse(chunk);
+        await sleep(WRITE_CHUNK_DELAY_MS);
+      }
+    }
+
+    function onNotification(event) {
+      rxBuffer += new TextDecoder().decode(event.target.value);
+      while (rxBuffer.includes("\n")) {
+        const newline = rxBuffer.indexOf("\n");
+        const line = rxBuffer.slice(0, newline).trim();
+        rxBuffer = rxBuffer.slice(newline + 1);
+        if (line) log(`rx: ${line}`);
+      }
+    }
+
+    async function connectWatch() {
+      log("requesting watch...");
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: "Bangle" }],
+        optionalServices: [NUS_SERVICE_UUID],
+      });
+
+      device.addEventListener("gattserverdisconnected", () => {
+        log("watch disconnected");
+        device = null;
+        server = null;
+        txCharacteristic = null;
+        rxCharacteristic = null;
+        rxBuffer = "";
+        setConnected(false);
+      });
+
+      server = await device.gatt.connect();
+      const service = await server.getPrimaryService(NUS_SERVICE_UUID);
+      txCharacteristic = await service.getCharacteristic(UART_TX_UUID);
+      rxCharacteristic = await service.getCharacteristic(UART_RX_UUID);
+      await txCharacteristic.startNotifications();
+      txCharacteristic.addEventListener("characteristicvaluechanged", onNotification);
+
+      setConnected(true, device.name || "Bangle");
+      log("watch connected");
+    }
+
+    async function disconnectWatch() {
+      if (txCharacteristic) {
+        try {
+          txCharacteristic.removeEventListener("characteristicvaluechanged", onNotification);
+        } catch (_err) {
+        }
+      }
+      if (device && device.gatt.connected) {
+        device.gatt.disconnect();
+      }
+      device = null;
+      server = null;
+      txCharacteristic = null;
+      rxCharacteristic = null;
+      rxBuffer = "";
+      setConnected(false);
+      log("watch disconnected");
+    }
+
+    async function sendHaptic() {
+      const ms = Number(msInput.value || 0);
+      const strengthText = strengthInput.value.trim();
+      const haptic = { ms };
+
+      if (strengthText) {
+        haptic.strength = Number(strengthText);
+      }
+
+      const payload = {
+        cmd: "haptic",
+        event: "browser_test",
+        haptic,
+      };
+
+      const command =
+        "if(global.dreamstreamCmdBridge&&global.dreamstreamCmdBridge.handlePacket)" +
+        `global.dreamstreamCmdBridge.handlePacket(${JSON.stringify(payload)})\n`;
+
+      log(`tx: ${JSON.stringify(payload)}`);
+      await writeCommand(command);
+    }
+
+    connectBtn.addEventListener("click", async () => {
+      try {
+        await connectWatch();
+      } catch (err) {
+        log(`connect failed: ${err}`);
+      }
+    });
+
+    disconnectBtn.addEventListener("click", async () => {
+      try {
+        await disconnectWatch();
+      } catch (err) {
+        log(`disconnect failed: ${err}`);
+      }
+    });
+
+    sendBtn.addEventListener("click", async () => {
+      try {
+        await sendHaptic();
+      } catch (err) {
+        log(`send failed: ${err}`);
+      }
+    });
+  </script>
+</body>
+</html>

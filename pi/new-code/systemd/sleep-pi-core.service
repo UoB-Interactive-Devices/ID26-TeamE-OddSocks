@@ -1,12 +1,14 @@
 [Unit]
 Description=Sleep Pi Core Controller
+After=bluetooth.service
+Wants=bluetooth.service
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/ID26-TeamE-OddSocks
-ExecStart=/home/pi/ID26-TeamE-OddSocks/.venv/bin/python /home/pi/ID26-TeamE-OddSocks/pi/new-code/main.py
+WorkingDirectory=/home/pi/ID26-TeamE-OddSocks/pi/new-code
+ExecStart=/home/pi/ID26-TeamE-OddSocks/pi/new-code/.venv/bin/python /home/pi/ID26-TeamE-OddSocks/pi/new-code/main.py
 Restart=always
 RestartSec=5
 

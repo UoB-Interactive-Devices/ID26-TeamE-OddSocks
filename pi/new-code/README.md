@@ -80,6 +80,34 @@ In CLI mode:
 - `haptic 120` sends a direct 120ms watch haptic command
 - `start` then `stage rem` runs the REM stage stimuli using the active BLE link
 
+## Run on boot on the Pi
+
+The repo already includes a simple systemd unit template at `systemd/sleep-pi-core.service`.
+
+Systemd services run as root by default unless you add a `User=` line, so this is the clean way to have it run with sudo-style privileges on startup.
+
+On the Pi:
+
+```bash
+cd /home/pi/ID26-TeamE-OddSocks/pi/new-code
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+sudo cp systemd/sleep-pi-core.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable sleep-pi-core.service
+sudo systemctl start sleep-pi-core.service
+```
+
+Useful checks:
+
+```bash
+sudo systemctl status sleep-pi-core.service
+sudo journalctl -u sleep-pi-core.service -f
+```
+
+If the repo lives somewhere other than `/home/pi/ID26-TeamE-OddSocks`, update the paths in `systemd/sleep-pi-core.service` before copying it into `/etc/systemd/system/`.
+
 ## Next implementation step
 
 Replace placeholder modules in `stages/` with real stage logic for each stimulus.
