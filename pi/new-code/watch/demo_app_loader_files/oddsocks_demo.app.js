@@ -5,7 +5,7 @@
   var SRC = "oddsocks_demo";
   var STAGES = ["awake", "light_sleep", "deep_sleep", "rem"];
   var LABELS = ["AWAKE", "LIGHT", "DEEP", "REM"];
-  var GAP = 8;
+  var GAP = 4;
   var stageIndex = 0;
   var buttons = [];
 
@@ -54,24 +54,19 @@
 
   function nextStage() {
     stageIndex = (stageIndex + 1) % STAGES.length;
-    Bangle.buzz(30);
     draw();
+    Bangle.buzz(60);
   }
 
   function makeButton(index, lines, action, color) {
     var app = Bangle.appRect || { x: 0, y: 24, x2: g.getWidth() - 1, y2: g.getHeight() - 1 };
-    var areaW = app.x2 - app.x + 1;
     var areaH = app.y2 - app.y + 1;
-    var size = ((Math.min(areaW, areaH) - GAP) / 2) | 0;
-    var gridW = size * 2 + GAP;
-    var gridH = size * 2 + GAP;
-    var col = index % 2;
-    var row = (index / 2) | 0;
+    var height = ((areaH - GAP * 3) / 4) | 0;
     return {
-      x: app.x + ((areaW - gridW) >> 1) + col * (size + GAP),
-      y: app.y + ((areaH - gridH) >> 1) + row * (size + GAP),
-      w: size,
-      h: size,
+      x: app.x,
+      y: app.y + index * (height + GAP),
+      w: app.x2 - app.x + 1,
+      h: height,
       lines: lines,
       action: action,
       color: color
@@ -80,7 +75,7 @@
 
   function rebuildButtons() {
     buttons = [
-      makeButton(0, ["RUN", "DEMO"], runDemo, "#1f8b4c"),
+      makeButton(0, ["RUN DEMO"], runDemo, "#1f8b4c"),
       makeButton(1, ["NEXT", selectedLabel()], nextStage, "#5146a6"),
       makeButton(2, ["SEND", selectedLabel()], sendStage, "#795548"),
       makeButton(3, ["STOP"], stopDemo, "#a22522")
@@ -104,15 +99,15 @@
 
     var cx = button.x + (button.w >> 1);
     var cy = button.y + (button.h >> 1);
-    var maxTextW = button.w - 10;
+    var maxTextW = button.w - 14;
     g.setColor("#ffffff").setFontAlign(0, 0);
 
     if (lines.length === 1) {
-      g.setFont("Vector", fitScale(lines[0], maxTextW, 22));
+      g.setFont("Vector", fitScale(lines[0], maxTextW, 20));
       g.drawString(lines[0], cx, cy);
     } else {
-      var size = fitScale(lines[0].length > lines[1].length ? lines[0] : lines[1], maxTextW, 18);
-      var dy = Math.max(10, (size * 0.8) | 0);
+      var size = fitScale(lines[0].length > lines[1].length ? lines[0] : lines[1], maxTextW, 16);
+      var dy = Math.max(10, (size * 0.75) | 0);
       g.setFont("Vector", size);
       g.drawString(lines[0], cx, cy - (dy >> 1));
       g.drawString(lines[1], cx, cy + (dy >> 1));
@@ -136,6 +131,7 @@
 
   function onTouch(_button, xy) {
     if (!xy) return;
+    rebuildButtons();
     var b = hitTest(xy.x, xy.y);
     if (b) b.action();
   }
