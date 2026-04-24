@@ -107,9 +107,10 @@ sudo python3 test_stimuli.py preflight
 
 For Bluetooth tests, the script tries to unblock Bluetooth, start `bluetooth.service`, and run `bluetoothctl power on` before scanning. Use `--no-auto-setup` to only report state without changing it.
 
-For speaker tests, `--audio-device auto` is the default. It reads `aplay -l`, picks a likely playback device, and runs `speaker-test` with `-D plughw:<card>,<device>` so the test does not depend on ALSA's missing `default` device. You can override it when needed:
+For speaker tests, `plughw:0,0` is the default because that is the DAC that worked on the demo Pi. You can override it when needed, or use `auto` to read `aplay -l` and pick a likely playback device:
 
 ```bash
+python3 test_stimuli.py speaker --audio-device auto
 python3 test_stimuli.py speaker --audio-device plughw:1,0
 python3 test_stimuli.py speaker --audio-device default
 ```
@@ -128,6 +129,8 @@ If `speaker` fails with `Playback open error`, the Pi does not currently have a 
 aplay -l
 speaker-test -D plughw:0,0 -t sine -f 440 -l 1
 ```
+
+If the USB DAC is plugged in but `preflight` still says there are no ALSA playback devices, check the diagnostics it prints. `lsusb` seeing the DAC but `aplay -l` not listing it usually means the kernel audio driver is not loaded or the device was not enumerated as an ALSA sound card.
 
 If `leds` makes the shell unresponsive, run it by itself rather than through `all`; NeoPixel control on Raspberry Pi can be sensitive to root privileges, PWM/DMA availability, and GPIO18 wiring.
 
