@@ -74,6 +74,8 @@ class GpioOutput:
         finally:
             if self.handle is not None:
                 lgpio.gpiochip_close(self.handle)
+            elif self.use_rpi_gpio:
+                GPIO.cleanup(self.pin)
 
     def write(self, value: int) -> None:
         if self.handle is not None:
