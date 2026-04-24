@@ -28,6 +28,7 @@ NEBULISERS = {
 }
 HAPTIC_MOTOR_PIN = 23
 HAPTIC_PWM_HZ = 100
+LED_GPIO_PIN = 18
 LED_COUNT = 8
 LED_BRIGHTNESS = 0.15
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
@@ -149,6 +150,33 @@ def force_pin_low(pin: int) -> None:
             stderr=subprocess.DEVNULL,
             timeout=1,
         )
+
+
+def release_gpio_pin(pin: int) -> None:
+    force_pin_low(pin)
+
+    if lgpio is not None:
+        handle = None
+        try:
+            handle = lgpio.gpiochip_open(GPIO_CHIP)
+            lgpio.gpio_claim_output(handle, pin)
+            lgpio.gpio_write(handle, pin, 0)
+            if hasattr(lgpio, "gpio_free"):
+                lgpio.gpio_free(handle, pin)
+        except Exception:
+            pass
+        finally:
+            if handle is not None:
+                with contextlib.suppress(Exception):
+                    lgpio.gpiochip_close(handle)
+
+    if GPIO is not None:
+        with contextlib.suppress(Exception):
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+            GPIO.setup(pin, GPIO.OUT)
+            GPIO.output(pin, GPIO.LOW)
+            GPIO.cleanup(pin)
 
 
 def run_quiet_command(command: list[str], timeout: float = 2.0) -> str:
@@ -371,14 +399,24 @@ async def test_leds(duration: float) -> None:
         raise RuntimeError("board/neopixel unavailable; run this on the Pi")
 
     print(f"leds: D18, {LED_COUNT} pixels")
-    try:
-        pixels = neopixel.NeoPixel(board.D18, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
-    except RuntimeError as exc:
-        if "GPIO busy" in str(exc):
-            raise RuntimeError(
-                "GPIO18 is busy. Stop any other script/service using LEDs or audio PWM, then retry leds by itself."
-            ) from exc
-        raise
+    release_gpio_pin(LED_GPIO_PIN)
+    pixels = None
+    for attempt in range(2):
+        try:
+            pixels = neopixel.NeoPixel(board.D18, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
+            break
+        except RuntimeError as exc:
+            if "GPIO busy" not in str(exc) or attempt:
+                raise RuntimeError(
+                    "GPIO18 is busy even after cleanup. Stop any other script/service using LEDs or audio PWM, then retry leds by itself."
+                ) from exc
+            print("leds: GPIO18 busy; clearing pin and retrying once")
+            release_gpio_pin(LED_GPIO_PIN)
+            await asyncio.sleep(0.2)
+
+    if pixels is None:
+        raise RuntimeError("failed to initialise NeoPixel LEDs")
+
     cleanup = register_cleanup(lambda: pixels.fill((0, 0, 0)) or pixels.show())
     try:
         for color in ((255, 0, 0), (0, 255, 0), (0, 0, 255)):
@@ -391,6 +429,7 @@ async def test_leds(duration: float) -> None:
         pixels.show()
         if hasattr(pixels, "deinit"):
             pixels.deinit()
+        release_gpio_pin(LED_GPIO_PIN)
     print("leds: off")
 
 
