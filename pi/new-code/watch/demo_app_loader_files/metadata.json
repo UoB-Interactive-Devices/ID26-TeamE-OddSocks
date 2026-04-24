@@ -16,6 +16,11 @@
     {
       "name": "oddsocks_demo.cmd.boot.js",
       "url": "oddsocks_demo.cmd.boot.js"
+    },
+    {
+      "name": "oddsocks_demo.img",
+      "url": "oddsocks_demo.img",
+      "evaluate": true
     }
   ]
 }
