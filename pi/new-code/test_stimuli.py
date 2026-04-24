@@ -28,7 +28,7 @@ NEBULISERS = {
 }
 HAPTIC_MOTOR_PIN = 23
 HAPTIC_PWM_HZ = 100
-LED_COUNT = 10
+LED_COUNT = 8
 LED_BRIGHTNESS = 0.15
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
@@ -371,7 +371,14 @@ async def test_leds(duration: float) -> None:
         raise RuntimeError("board/neopixel unavailable; run this on the Pi")
 
     print(f"leds: D18, {LED_COUNT} pixels")
-    pixels = neopixel.NeoPixel(board.D18, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
+    try:
+        pixels = neopixel.NeoPixel(board.D18, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
+    except RuntimeError as exc:
+        if "GPIO busy" in str(exc):
+            raise RuntimeError(
+                "GPIO18 is busy. Stop any other script/service using LEDs or audio PWM, then retry leds by itself."
+            ) from exc
+        raise
     cleanup = register_cleanup(lambda: pixels.fill((0, 0, 0)) or pixels.show())
     try:
         for color in ((255, 0, 0), (0, 255, 0), (0, 0, 255)):

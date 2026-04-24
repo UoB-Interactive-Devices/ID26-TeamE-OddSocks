@@ -132,7 +132,7 @@ speaker-test -D plughw:0,0 -t sine -f 440 -l 1
 
 If the USB DAC is plugged in but `preflight` still says there are no ALSA playback devices, check the diagnostics it prints. `lsusb` seeing the DAC but `aplay -l` not listing it usually means the kernel audio driver is not loaded or the device was not enumerated as an ALSA sound card.
 
-If `leds` makes the shell unresponsive, run it by itself rather than through `all`; NeoPixel control on Raspberry Pi can be sensitive to root privileges, PWM/DMA availability, and GPIO18 wiring.
+If `leds` reports `GPIO18 is busy` or makes the shell unresponsive, run it by itself rather than through `all` and stop any other script/service using LEDs or audio PWM first. NeoPixel control on Raspberry Pi can be sensitive to root privileges, PWM/DMA availability, and GPIO18 wiring. The demo strip is configured as 8 pixels.
 
 ## Demo mode notes
 
