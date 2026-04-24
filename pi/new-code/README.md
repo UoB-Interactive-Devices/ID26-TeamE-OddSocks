@@ -113,9 +113,10 @@ To run all outputs at the same time, use the explicit simultaneous mode. It conn
 sudo python3 test_stimuli.py all --simultaneous --duration 2 --cycles 3 --gap 10
 ```
 
-For speaker tests, `plughw:1,0` is the default because `aplay -l` shows the USB DAC as card 1, device 0. You can override it when needed:
+For speaker tests, `--audio-device auto` is the default. It picks the USB/PnP sound card from `aplay -l`, which handles the DAC appearing as card 0 after hotplug or card 1 after boot. You can override it when needed:
 
 ```bash
+python3 test_stimuli.py speaker --audio-device plughw:1,0
 python3 test_stimuli.py speaker --audio-device plughw:0,0
 python3 test_stimuli.py speaker --audio-device default
 ```
@@ -133,6 +134,7 @@ If `speaker` fails with `Playback open error`, the Pi does not currently have a 
 ```bash
 aplay -l
 speaker-test -D plughw:1,0 -t sine -f 440 -l 1
+speaker-test -D plughw:0,0 -t sine -f 440 -l 1
 ```
 
 If the USB DAC is plugged in but `preflight` still says there are no ALSA playback devices, check the diagnostics it prints. `lsusb` seeing the DAC but `aplay -l` not listing it usually means the kernel audio driver is not loaded or the device was not enumerated as an ALSA sound card.

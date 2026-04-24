@@ -36,7 +36,7 @@ LED_WORKER_ENV = "ODDSOCKS_LED_WORKER"
 PI_CONFIG_PATHS = ("/boot/firmware/config.txt", "/boot/config.txt")
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
-DEFAULT_AUDIO_DEVICE = "plughw:1,0"
+DEFAULT_AUDIO_DEVICE = "auto"
 ALL_CYCLE_GAP_S = 10.0
 BLE_KEEPALIVE_INTERVAL_S = 2.0
 BLUETOOTH_SETUP_COMMANDS = (
@@ -279,6 +279,23 @@ def command_has_audio_device(parts: list[str]) -> bool:
     return "-D" in parts or any(part.startswith("--device") for part in parts)
 
 
+def find_usb_audio_device() -> str | None:
+    output = run_quiet_command(["aplay", "-l"])
+    for line in output.splitlines():
+        line = line.strip()
+        if not line.startswith("card ") or "device 0:" not in line:
+            continue
+        lower = line.lower()
+        if "usb" not in lower and "pnp sound" not in lower:
+            continue
+        try:
+            card = line.removeprefix("card ").split(":", 1)[0].strip().split()[0]
+        except IndexError:
+            continue
+        return f"plughw:{card},0"
+    return None
+
+
 def resolve_speaker_command(command: str, audio_device: str) -> list[str]:
     parts = shlex.split(command)
     if not parts:
@@ -290,7 +307,11 @@ def resolve_speaker_command(command: str, audio_device: str) -> list[str]:
     if audio_device == "default":
         return parts
 
-    return [parts[0], "-D", audio_device, *parts[1:]]
+    device = find_usb_audio_device() if audio_device == "auto" else audio_device
+    if device is None:
+        raise RuntimeError(f"no USB audio playback device found; ALSA devices: {run_quiet_command(['aplay', '-l'])}")
+
+    return [parts[0], "-D", device, *parts[1:]]
 
 
 async def run_with_timeout(name: str, action: Callable[[], Awaitable[None]], timeout: float) -> None:
