@@ -37,6 +37,7 @@ PI_CONFIG_PATHS = ("/boot/firmware/config.txt", "/boot/config.txt")
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
 DEFAULT_AUDIO_DEVICE = "plughw:1,0"
+ALL_CYCLE_GAP_S = 10.0
 BLUETOOTH_SETUP_COMMANDS = (
     ("rfkill", "unblock", "bluetooth"),
     ("systemctl", "start", "bluetooth"),
@@ -459,6 +460,27 @@ async def test_speaker(
         )
 
 
+async def test_speaker_duration(command: str, audio_device: str, duration: float) -> None:
+    parts = resolve_speaker_command(command, audio_device)
+    print(f"speaker: {shlex.join(parts)} for {duration:.1f}s")
+    proc = await asyncio.create_subprocess_exec(*parts)
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=duration)
+    except asyncio.TimeoutError:
+        proc.terminate()
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(proc.wait(), timeout=1.0)
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+
+    if proc.returncode not in (0, -signal.SIGTERM):
+        cards = run_quiet_command(["aplay", "-l"])
+        raise RuntimeError(
+            f"speaker command failed with exit code {proc.returncode}; ALSA devices: {cards}"
+        )
+
+
 async def test_watch_buzz(timeout: float, auto_setup: bool) -> None:
     async def noop() -> None:
         return None
@@ -467,29 +489,118 @@ async def test_watch_buzz(timeout: float, auto_setup: bool) -> None:
         return None
 
     log = logging.getLogger("stimuli_test.ble")
-    ensure_bluetooth_ready(auto_setup)
-    ble = BleTransport(on_packet=on_packet, on_connected=noop, on_disconnected=noop, log=log)
-    task = asyncio.create_task(ble.run_forever())
-    cleanup = register_cleanup(ble.request_stop)
+    ble, task, cleanup = await connect_watch_ble(timeout, auto_setup, log, on_packet, noop, noop)
     try:
-        print("watch buzz: waiting for Bangle BLE connection")
-        start = asyncio.get_running_loop().time()
-        while not ble.connected:
-            if task.done():
-                exc = task.exception()
-                adapter = run_quiet_command(["bluetoothctl", "show"])
-                detail = f"{exc}" if exc else "BLE worker stopped before connecting"
-                raise RuntimeError(f"{detail}; Bluetooth adapter status: {adapter}")
-            if asyncio.get_running_loop().time() - start > timeout:
-                adapter = run_quiet_command(["bluetoothctl", "show"])
-                raise RuntimeError(f"timed out waiting for watch BLE connection; Bluetooth adapter status: {adapter}")
-            await asyncio.sleep(0.2)
-
         sent = await ble.send_json({"cmd": "buzz", "buzz": 500, "intensity": 80})
         if not sent:
             raise RuntimeError("watch buzz command was not sent")
         await asyncio.sleep(0.7)
         print("watch buzz: sent")
+    finally:
+        unregister_cleanup(cleanup)
+        ble.request_stop()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+async def test_watch_buzz_connected(ble: BleTransport, duration: float) -> None:
+    sent = await ble.send_json(
+        {"cmd": "buzz", "buzz": int(duration * 1000), "intensity": 80}
+    )
+    if not sent:
+        raise RuntimeError("watch buzz command was not sent")
+    await asyncio.sleep(duration)
+    print("watch buzz: sent")
+
+
+async def connect_watch_ble(
+    timeout: float,
+    auto_setup: bool,
+    log: logging.Logger,
+    on_packet: Callable[[dict[str, Any]], Awaitable[None]],
+    on_connected: Callable[[], Awaitable[None]],
+    on_disconnected: Callable[[], Awaitable[None]],
+) -> tuple[BleTransport, asyncio.Task, Callable[[], None]]:
+    ensure_bluetooth_ready(auto_setup)
+    ble = BleTransport(
+        on_packet=on_packet,
+        on_connected=on_connected,
+        on_disconnected=on_disconnected,
+        log=log,
+    )
+    task = asyncio.create_task(ble.run_forever())
+    cleanup = register_cleanup(ble.request_stop)
+
+    print("watch buzz: waiting for Bangle BLE connection")
+    start = asyncio.get_running_loop().time()
+    while not ble.connected:
+        if task.done():
+            exc = task.exception()
+            adapter = run_quiet_command(["bluetoothctl", "show"])
+            detail = f"{exc}" if exc else "BLE worker stopped before connecting"
+            raise RuntimeError(f"{detail}; Bluetooth adapter status: {adapter}")
+        if asyncio.get_running_loop().time() - start > timeout:
+            adapter = run_quiet_command(["bluetoothctl", "show"])
+            raise RuntimeError(f"timed out waiting for watch BLE connection; Bluetooth adapter status: {adapter}")
+        await asyncio.sleep(0.2)
+
+    print("watch buzz: connected")
+    return ble, task, cleanup
+
+
+async def run_all_simultaneous(args: argparse.Namespace) -> None:
+    async def noop() -> None:
+        return None
+
+    async def on_packet(_packet: dict[str, Any]) -> None:
+        return None
+
+    log = logging.getLogger("stimuli_test.ble")
+    ble, task, cleanup = await connect_watch_ble(
+        args.ble_timeout,
+        args.auto_setup,
+        log,
+        on_packet,
+        noop,
+        noop,
+    )
+
+    try:
+        for cycle in range(args.cycles):
+            print(f"\n== simultaneous cycle {cycle + 1}/{args.cycles} ==")
+            actions: dict[str, Awaitable[None]] = {
+                "nebuliser_1": test_nebuliser(
+                    "nebuliser_1",
+                    NEBULISERS["nebuliser_1"],
+                    args.duration,
+                ),
+                "nebuliser_2": test_nebuliser(
+                    "nebuliser_2",
+                    NEBULISERS["nebuliser_2"],
+                    args.duration,
+                ),
+                "speaker": test_speaker_duration(args.speaker_command, args.audio_device, args.duration),
+                "haptic_motor": test_haptic_motor(args.duration, args.intensity),
+                "watch_buzz": test_watch_buzz_connected(ble, args.duration),
+                "leds": test_leds(args.duration, args.force_leds),
+            }
+            results = await asyncio.gather(*actions.values(), return_exceptions=True)
+            failed = False
+            for name, result in zip(actions, results, strict=True):
+                if isinstance(result, Exception):
+                    failed = True
+                    print(f"{name}: FAILED - {result}")
+                else:
+                    print(f"{name}: OK")
+            run_cleanups()
+            if cycle < args.cycles - 1:
+                print(f"waiting {args.gap:.1f}s")
+                await asyncio.sleep(args.gap)
+            if failed:
+                print("simultaneous cycle completed with failures")
     finally:
         unregister_cleanup(cleanup)
         ble.request_stop()
@@ -508,6 +619,10 @@ async def test_preflight(args: argparse.Namespace) -> None:
 
 
 async def run_selected(args: argparse.Namespace) -> None:
+    if args.stimulus == "all" and args.simultaneous:
+        await run_all_simultaneous(args)
+        return
+
     tests: dict[str, Callable[[], Awaitable[None]]] = {
         "preflight": lambda: test_preflight(args),
         "nebuliser_1": lambda: test_nebuliser("nebuliser_1", NEBULISERS["nebuliser_1"], args.duration),
@@ -551,6 +666,13 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_AUDIO_DEVICE,
         help="ALSA device for speaker-test, e.g. plughw:1,0 or default",
     )
+    parser.add_argument(
+        "--simultaneous",
+        action="store_true",
+        help="With stimulus=all, connect watch first then run all outputs at the same time",
+    )
+    parser.add_argument("--cycles", type=int, default=1, help="Simultaneous all-output cycles")
+    parser.add_argument("--gap", type=float, default=ALL_CYCLE_GAP_S, help="Seconds between simultaneous cycles")
     parser.add_argument("--force-leds", action="store_true", help="Run NeoPixel test even when safety checks warn")
     parser.add_argument("--led-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(

@@ -107,6 +107,12 @@ sudo python3 test_stimuli.py preflight
 
 For Bluetooth tests, the script tries to unblock Bluetooth, start `bluetooth.service`, and run `bluetoothctl power on` before scanning. Use `--no-auto-setup` to only report state without changing it.
 
+To run all outputs at the same time, use the explicit simultaneous mode. It connects to the watch first, waits until BLE is connected, then runs all outputs together for `--duration` seconds. Use `--cycles` and `--gap` for repeated passes:
+
+```bash
+sudo python3 test_stimuli.py all --simultaneous --duration 2 --cycles 3 --gap 10
+```
+
 For speaker tests, `plughw:1,0` is the default because `aplay -l` shows the USB DAC as card 1, device 0. You can override it when needed:
 
 ```bash
