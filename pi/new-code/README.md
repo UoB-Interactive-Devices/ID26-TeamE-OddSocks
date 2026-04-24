@@ -107,15 +107,12 @@ sudo python3 test_stimuli.py preflight
 
 For Bluetooth tests, the script tries to unblock Bluetooth, start `bluetooth.service`, and run `bluetoothctl power on` before scanning. Use `--no-auto-setup` to only report state without changing it.
 
-For speaker tests, `plughw:0,0` is the default because that is the DAC that worked on the demo Pi. You can override it when needed, or use `auto` to read `aplay -l` and pick a likely playback device:
+For speaker tests, `plughw:1,0` is the default because `aplay -l` shows the USB DAC as card 1, device 0. You can override it when needed:
 
 ```bash
-python3 test_stimuli.py speaker --audio-device auto
-python3 test_stimuli.py speaker --audio-device plughw:1,0
+python3 test_stimuli.py speaker --audio-device plughw:0,0
 python3 test_stimuli.py speaker --audio-device default
 ```
-
-The speaker test also tries to set the `PCM` ALSA mixer control to 100% and unmute it before playing. Override with `--mixer-control Master` or `--volume 70` if needed.
 
 If `watch_buzz` reports no powered Bluetooth adapters, check the Pi adapter state:
 
@@ -129,7 +126,7 @@ If `speaker` fails with `Playback open error`, the Pi does not currently have a 
 
 ```bash
 aplay -l
-speaker-test -D plughw:0,0 -t sine -f 440 -l 1
+speaker-test -D plughw:1,0 -t sine -f 440 -l 1
 ```
 
 If the USB DAC is plugged in but `preflight` still says there are no ALSA playback devices, check the diagnostics it prints. `lsusb` seeing the DAC but `aplay -l` not listing it usually means the kernel audio driver is not loaded or the device was not enumerated as an ALSA sound card.

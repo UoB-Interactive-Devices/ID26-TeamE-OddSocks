@@ -36,17 +36,11 @@ LED_WORKER_ENV = "ODDSOCKS_LED_WORKER"
 PI_CONFIG_PATHS = ("/boot/firmware/config.txt", "/boot/config.txt")
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
-DEFAULT_AUDIO_DEVICE = "plughw:0,0"
-DEFAULT_VOLUME_PERCENT = 100
-DEFAULT_MIXER_CONTROL = "PCM"
+DEFAULT_AUDIO_DEVICE = "plughw:1,0"
 BLUETOOTH_SETUP_COMMANDS = (
     ("rfkill", "unblock", "bluetooth"),
     ("systemctl", "start", "bluetooth"),
     ("bluetoothctl", "power", "on"),
-)
-USB_AUDIO_SETUP_COMMANDS = (
-    ("modprobe", "snd-usb-audio"),
-    ("alsactl", "init"),
 )
 _CLEANUPS: list[Callable[[], None]] = []
 
@@ -283,78 +277,7 @@ def command_has_audio_device(parts: list[str]) -> bool:
     return "-D" in parts or any(part.startswith("--device") for part in parts)
 
 
-def audio_diagnostics() -> str:
-    return "\n".join(
-        (
-            "aplay -l:",
-            run_quiet_command(["aplay", "-l"]),
-            "",
-            "/proc/asound/cards:",
-            read_quiet_file("/proc/asound/cards"),
-            "",
-            "/proc/asound/modules:",
-            read_quiet_file("/proc/asound/modules"),
-            "",
-            "lsusb:",
-            run_quiet_command(["lsusb"]),
-        )
-    )
-
-
-def ensure_usb_audio_ready(auto_setup: bool) -> None:
-    if parse_aplay_cards(run_quiet_command(["aplay", "-l"])):
-        return
-
-    if not auto_setup:
-        return
-
-    print("speaker: no ALSA playback cards yet; trying USB audio setup")
-    for command in USB_AUDIO_SETUP_COMMANDS:
-        ok, output = run_setup_command(command)
-        if ok:
-            print(f"speaker: {' '.join(command)} OK")
-        else:
-            print(f"speaker: {' '.join(command)} failed - {output}")
-
-
-def parse_aplay_cards(output: str) -> list[tuple[str, str, str, str]]:
-    devices = []
-    for line in output.splitlines():
-        line = line.strip()
-        if not line.startswith("card ") or " device " not in line:
-            continue
-        try:
-            left, description = line.split(":", 1)
-            card_part, device_part = left.split(",", 1)
-            card = card_part.removeprefix("card ").strip().split()[0]
-            device = device_part.strip().removeprefix("device ").strip().split()[0]
-            label = description.strip()
-            score_text = line.lower()
-        except (IndexError, ValueError):
-            continue
-        devices.append((card, device, label, score_text))
-    return devices
-
-
-def preferred_audio_device(auto_setup: bool = False) -> str | None:
-    ensure_usb_audio_ready(auto_setup)
-    listing = run_quiet_command(["aplay", "-l"])
-    devices = parse_aplay_cards(listing)
-    if not devices:
-        return None
-
-    preferred_words = ("dac", "usb", "audio", "headphones", "bcm2835")
-
-    def score(device: tuple[str, str, str, str]) -> int:
-        return sum(1 for word in preferred_words if word in device[3])
-
-    card, device, label, _score_text = max(devices, key=score)
-    selected = f"plughw:{card},{device}"
-    print(f"speaker: selected ALSA device {selected} ({label})")
-    return selected
-
-
-def resolve_speaker_command(command: str, audio_device: str, auto_setup: bool) -> list[str]:
+def resolve_speaker_command(command: str, audio_device: str) -> list[str]:
     parts = shlex.split(command)
     if not parts:
         raise RuntimeError("speaker command is empty")
@@ -365,41 +288,7 @@ def resolve_speaker_command(command: str, audio_device: str, auto_setup: bool) -
     if audio_device == "default":
         return parts
 
-    selected_device = preferred_audio_device(auto_setup) if audio_device == "auto" else audio_device
-    if selected_device is None:
-        print("speaker: no ALSA playback device found by aplay -l; diagnostics:")
-        print(audio_diagnostics())
-        print("speaker: trying command unchanged")
-        return parts
-    return [parts[0], "-D", selected_device, *parts[1:]]
-
-
-def audio_card_from_device(audio_device: str) -> str | None:
-    if audio_device in ("auto", "default"):
-        return None
-    if audio_device.startswith(("plughw:", "hw:")):
-        card_device = audio_device.split(":", 1)[1]
-        card = card_device.split(",", 1)[0].strip()
-        return card or None
-    return None
-
-
-def set_speaker_volume(audio_device: str, mixer_control: str, volume_percent: int) -> None:
-    if shutil.which("amixer") is None:
-        print("speaker: amixer not installed; skipping volume setup")
-        return
-
-    card = audio_card_from_device(audio_device)
-    card_args = ["-c", card] if card is not None else []
-
-    ok, _output = run_setup_command(
-        ("amixer", *card_args, "sset", mixer_control, f"{volume_percent}%", "unmute")
-    )
-    if ok:
-        print(f"speaker: set {mixer_control} volume to {volume_percent}%")
-    else:
-        target = f"card {card}" if card is not None else "default card"
-        print(f"speaker: mixer control {mixer_control!r} not found on {target}; continuing")
+    return [parts[0], "-D", audio_device, *parts[1:]]
 
 
 async def run_with_timeout(name: str, action: Callable[[], Awaitable[None]], timeout: float) -> None:
@@ -551,12 +440,8 @@ async def test_leds(duration: float, force: bool) -> None:
 async def test_speaker(
     command: str,
     audio_device: str,
-    auto_setup: bool,
-    mixer_control: str,
-    volume_percent: int,
 ) -> None:
-    set_speaker_volume(audio_device, mixer_control, volume_percent)
-    parts = resolve_speaker_command(command, audio_device, auto_setup)
+    parts = resolve_speaker_command(command, audio_device)
     print(f"speaker: {shlex.join(parts)}")
     try:
         proc = await asyncio.to_thread(
@@ -617,12 +502,9 @@ async def test_watch_buzz(timeout: float, auto_setup: bool) -> None:
 
 async def test_preflight(args: argparse.Namespace) -> None:
     ensure_bluetooth_ready(args.auto_setup)
-    device = preferred_audio_device(args.auto_setup) if args.audio_device == "auto" else args.audio_device
-    if device:
-        print(f"speaker: usable ALSA device candidate: {device}")
-    else:
-        print("speaker: no ALSA playback devices found; diagnostics:")
-        print(audio_diagnostics())
+    print(f"speaker: configured ALSA device: {args.audio_device}")
+    print("speaker: ALSA playback devices:")
+    print(run_quiet_command(["aplay", "-l"]))
 
 
 async def run_selected(args: argparse.Namespace) -> None:
@@ -633,9 +515,6 @@ async def run_selected(args: argparse.Namespace) -> None:
         "speaker": lambda: test_speaker(
             args.speaker_command,
             args.audio_device,
-            args.auto_setup,
-            args.mixer_control,
-            args.volume,
         ),
         "haptic_motor": lambda: test_haptic_motor(args.duration, args.intensity),
         "watch_buzz": lambda: test_watch_buzz(args.ble_timeout, args.auto_setup),
@@ -670,10 +549,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--audio-device",
         default=DEFAULT_AUDIO_DEVICE,
-        help="ALSA device for speaker-test: auto, default, or e.g. plughw:1,0",
+        help="ALSA device for speaker-test, e.g. plughw:1,0 or default",
     )
-    parser.add_argument("--mixer-control", default=DEFAULT_MIXER_CONTROL, help="ALSA mixer control to set")
-    parser.add_argument("--volume", type=int, default=DEFAULT_VOLUME_PERCENT, help="Speaker test volume percent")
     parser.add_argument("--force-leds", action="store_true", help="Run NeoPixel test even when safety checks warn")
     parser.add_argument("--led-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
