@@ -34,7 +34,7 @@ Also accepted for convenience in test mode:
 - `{"cmd":"light"}` -> treated as `light_sleep`
 - `{"cmd":"deep"}` -> treated as `deep_sleep`
 
-Dreamstream telemetry from the watch is accepted:
+Dreamstream telemetry from the regular watch app is accepted:
 
 - `{"t":"dreamstream","seq":1,"ts":1773846600,"status":3,...}`
 
@@ -44,6 +44,8 @@ For dreamstream packets, the app:
 - maps numeric `status` to stage names used by this codebase
 - updates `current_stage` each packet
 - runs stage actions only on stage change while the session is running
+
+The separate demo control watch app in `watch/demo_app_loader_files/` does not run sleep detection or send telemetry. It only sends the simple control packets listed above.
 
 ## Run
 

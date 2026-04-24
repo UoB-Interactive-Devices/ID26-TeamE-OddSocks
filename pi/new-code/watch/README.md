@@ -1,28 +1,25 @@
-# Dreamstream Watch Package
+# Watch Apps
 
-This folder contains the Dreamstream watch files for Bangle.js 2.
+This folder keeps the two Bangle.js 2 apps separate:
 
-## Files
+- `app_loader_files/` is the regular Dreamstream watch app from the main branch.
+- `demo_app_loader_files/` is the small OddSocks demo control app.
 
-- `dreamstream.js`: Sleep feature extraction and classifier module copied from legacy source.
-- `dreamstream.boot.js`: Background sleep service copied from legacy source, with minimal non-detection integration edits.
-- `dreamstream.app.js`: One-screen operational/control app UI (Start/Stop, fast demo trigger, stage selector + manual stage fire via button).
-- `dreamstream.cmd.boot.js`: Pi command inbox and basic haptic command handling.
-- `dreamstream.info`: App metadata.
+The demo app is intentionally just a controller. It sends start, stop, scripted demo, and manual stage commands to the Pi. It does not include the Dreamstream classifier, background telemetry service, epoch logging, or regular-use storage files.
 
-## Upload to watch
+## Regular App
 
-Upload all files in this folder to the watch storage.
+Use `app_loader_files/metadata.json` when you want the normal Dreamstream sleep tracking app.
 
-## Protocol
+## Demo Control App
 
-Telemetry tag sent by the boot service is `t:"dreamstream"`.
-Control packets sent by the app use `{"cmd":"start"}` and `{"cmd":"stop"}`.
-Demo/control packets include:
+Use `demo_app_loader_files/metadata.json` when you want the demo-only controller.
 
-- `{"cmd":"demo_run","stages":[...],"dwell_sec":0.35,"cycles":1}`
-- `{"cmd":"stage","stage":"rem","demo_fast":true}`
+Demo commands sent to the Pi:
 
-## Scientific parity note
+- `{"cmd":"start","src":"oddsocks_demo"}`
+- `{"cmd":"stop","src":"oddsocks_demo"}`
+- `{"cmd":"demo_run","stages":["awake","light_sleep","deep_sleep","rem"],"dwell_sec":0.35,"cycles":1,"auto_start":true,"src":"oddsocks_demo"}`
+- `{"cmd":"stage","stage":"rem","demo_fast":true,"src":"oddsocks_demo"}`
 
-Sleep-state detection logic in `dreamstream.js` is kept unchanged from legacy classifier code.
+The demo package also includes a tiny command bridge so Pi-triggered watch haptics still work during demos.

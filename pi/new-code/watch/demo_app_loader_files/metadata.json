@@ -1,0 +1,21 @@
+{
+  "id": "oddsocks_demo",
+  "name": "OddSocks Demo Control",
+  "shortName": "Demo",
+  "version": "0.01",
+  "author": "UoB Team E",
+  "description": "Small demo-only Bangle.js 2 controller for the OddSocks Pi demo.",
+  "type": "app",
+  "tags": "tool,demo",
+  "supports": ["BANGLEJS2"],
+  "storage": [
+    {
+      "name": "oddsocks_demo.app.js",
+      "url": "oddsocks_demo.app.js"
+    },
+    {
+      "name": "oddsocks_demo.cmd.boot.js",
+      "url": "oddsocks_demo.cmd.boot.js"
+    }
+  ]
+}
