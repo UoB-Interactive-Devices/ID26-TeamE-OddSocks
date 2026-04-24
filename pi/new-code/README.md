@@ -86,6 +86,51 @@ In CLI mode:
 - `demo_run` starts a fast scripted demo pass of all major stages
 - `demo_stop` cancels an active scripted demo
 
+## Hardware test script
+
+`test_stimuli.py` is intended for one-output-at-a-time checks before running the full app:
+
+```bash
+sudo python3 test_stimuli.py haptic_motor
+sudo python3 test_stimuli.py leds
+python3 test_stimuli.py speaker
+python3 test_stimuli.py watch_buzz
+```
+
+The script now registers cleanup handlers for GPIO/PWM outputs, so Ctrl-C should turn the Pi haptic motor off. When run as root, haptic cleanup also tries the same low-level fallback as `pinctrl set 23 dl`.
+
+It also has a quick setup check:
+
+```bash
+sudo python3 test_stimuli.py preflight
+```
+
+For Bluetooth tests, the script tries to unblock Bluetooth, start `bluetooth.service`, and run `bluetoothctl power on` before scanning. Use `--no-auto-setup` to only report state without changing it.
+
+For speaker tests, `--audio-device auto` is the default. It reads `aplay -l`, picks a likely playback device, and runs `speaker-test` with `-D plughw:<card>,<device>` so the test does not depend on ALSA's missing `default` device. You can override it when needed:
+
+```bash
+python3 test_stimuli.py speaker --audio-device plughw:1,0
+python3 test_stimuli.py speaker --audio-device default
+```
+
+If `watch_buzz` reports no powered Bluetooth adapters, check the Pi adapter state:
+
+```bash
+bluetoothctl show
+sudo systemctl status bluetooth
+sudo rfkill list bluetooth
+```
+
+If `speaker` fails with `Playback open error`, the Pi does not currently have a default ALSA output. Check devices with:
+
+```bash
+aplay -l
+speaker-test -D plughw:0,0 -t sine -f 440 -l 1
+```
+
+If `leds` makes the shell unresponsive, run it by itself rather than through `all`; NeoPixel control on Raspberry Pi can be sensitive to root privileges, PWM/DMA availability, and GPIO18 wiring.
+
 ## Demo mode notes
 
 `demo_run` is intended for live demos where you want one tap to run all stages without waiting for real sleep detection.
