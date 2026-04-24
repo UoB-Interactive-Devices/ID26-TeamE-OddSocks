@@ -8,7 +8,6 @@ NoLEDs = 10
 remCycleNo = 3
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    #commented out for testing
     #await asyncio.sleep(delayAftrRem)
     #Using await means the other stage files can run during the gaps
 
