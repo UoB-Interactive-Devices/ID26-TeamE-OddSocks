@@ -115,6 +115,8 @@ python3 test_stimuli.py speaker --audio-device plughw:1,0
 python3 test_stimuli.py speaker --audio-device default
 ```
 
+The speaker test also tries to set the `PCM` ALSA mixer control to 100% and unmute it before playing. Override with `--mixer-control Master` or `--volume 70` if needed.
+
 If `watch_buzz` reports no powered Bluetooth adapters, check the Pi adapter state:
 
 ```bash
@@ -132,7 +134,7 @@ speaker-test -D plughw:0,0 -t sine -f 440 -l 1
 
 If the USB DAC is plugged in but `preflight` still says there are no ALSA playback devices, check the diagnostics it prints. `lsusb` seeing the DAC but `aplay -l` not listing it usually means the kernel audio driver is not loaded or the device was not enumerated as an ALSA sound card.
 
-If `leds` reports `GPIO18 is busy` or makes the shell unresponsive, run it by itself rather than through `all` and stop any other script/service using LEDs or audio PWM first. The script tries to release GPIO18 before and after the LED test, but it cannot clear a pin that another live process is actively holding. NeoPixel control on Raspberry Pi can be sensitive to root privileges, PWM/DMA availability, and GPIO18 wiring. The demo strip is configured as 8 pixels.
+If `leds` reports `GPIO18 is busy` or makes the shell unresponsive, run it by itself rather than through `all` and stop any other script/service using LEDs or audio PWM first. The script now skips the NeoPixel test by default if GPIO18 is already claimed or if `/boot/firmware/config.txt`/`/boot/config.txt` has `dtparam=audio=on`, because GPIO18 NeoPixels use PWM and that conflict can leave the pin stuck until reboot. The LED hardware call runs in a short-lived worker process so the main script can time out if the NeoPixel backend hangs, but it cannot kill a worker stuck in uninterruptible kernel state. Once the Pi config is known-good, force a run with `sudo python3 test_stimuli.py leds --force-leds`. The demo strip is configured as 8 pixels.
 
 ## Demo mode notes
 

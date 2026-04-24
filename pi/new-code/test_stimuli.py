@@ -31,9 +31,14 @@ HAPTIC_PWM_HZ = 100
 LED_GPIO_PIN = 18
 LED_COUNT = 8
 LED_BRIGHTNESS = 0.15
+LED_WORKER_TIMEOUT_S = 10.0
+LED_WORKER_ENV = "ODDSOCKS_LED_WORKER"
+PI_CONFIG_PATHS = ("/boot/firmware/config.txt", "/boot/config.txt")
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
 DEFAULT_AUDIO_DEVICE = "plughw:0,0"
+DEFAULT_VOLUME_PERCENT = 100
+DEFAULT_MIXER_CONTROL = "PCM"
 BLUETOOTH_SETUP_COMMANDS = (
     ("rfkill", "unblock", "bluetooth"),
     ("systemctl", "start", "bluetooth"),
@@ -177,6 +182,42 @@ def release_gpio_pin(pin: int) -> None:
             GPIO.setup(pin, GPIO.OUT)
             GPIO.output(pin, GPIO.LOW)
             GPIO.cleanup(pin)
+
+
+def gpio_line_info(pin: int) -> str:
+    gpioinfo = shutil.which("gpioinfo")
+    if gpioinfo is None:
+        return "gpioinfo not installed"
+    output = run_quiet_command([gpioinfo, f"gpiochip{GPIO_CHIP}"])
+    for line in output.splitlines():
+        if f"line {pin:3d}:" in line:
+            return line.strip()
+    return output
+
+
+def config_enables_onboard_audio() -> bool:
+    for path in PI_CONFIG_PATHS:
+        try:
+            with open(path) as file:
+                for line in file:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and stripped == "dtparam=audio=on":
+                        return True
+        except OSError:
+            continue
+    return False
+
+
+def led_safety_issues() -> list[str]:
+    issues = []
+    line = gpio_line_info(LED_GPIO_PIN)
+    if "consumer=" in line and 'consumer="unused"' not in line:
+        issues.append(f"GPIO{LED_GPIO_PIN} is already claimed: {line}")
+    if config_enables_onboard_audio():
+        issues.append(
+            "Pi onboard audio appears enabled via dtparam=audio=on; GPIO18 NeoPixels use PWM and can conflict with it"
+        )
+    return issues
 
 
 def run_quiet_command(command: list[str], timeout: float = 2.0) -> str:
@@ -333,6 +374,34 @@ def resolve_speaker_command(command: str, audio_device: str, auto_setup: bool) -
     return [parts[0], "-D", selected_device, *parts[1:]]
 
 
+def audio_card_from_device(audio_device: str) -> str | None:
+    if audio_device in ("auto", "default"):
+        return None
+    if audio_device.startswith(("plughw:", "hw:")):
+        card_device = audio_device.split(":", 1)[1]
+        card = card_device.split(",", 1)[0].strip()
+        return card or None
+    return None
+
+
+def set_speaker_volume(audio_device: str, mixer_control: str, volume_percent: int) -> None:
+    if shutil.which("amixer") is None:
+        print("speaker: amixer not installed; skipping volume setup")
+        return
+
+    card = audio_card_from_device(audio_device)
+    card_args = ["-c", card] if card is not None else []
+
+    ok, _output = run_setup_command(
+        ("amixer", *card_args, "sset", mixer_control, f"{volume_percent}%", "unmute")
+    )
+    if ok:
+        print(f"speaker: set {mixer_control} volume to {volume_percent}%")
+    else:
+        target = f"card {card}" if card is not None else "default card"
+        print(f"speaker: mixer control {mixer_control!r} not found on {target}; continuing")
+
+
 async def run_with_timeout(name: str, action: Callable[[], Awaitable[None]], timeout: float) -> None:
     try:
         await asyncio.wait_for(action(), timeout=timeout)
@@ -394,15 +463,16 @@ async def test_haptic_motor(duration: float, intensity: int) -> None:
     print("haptic motor: off")
 
 
-async def test_leds(duration: float) -> None:
+async def test_leds_direct(duration: float) -> None:
     if board is None or neopixel is None:
         raise RuntimeError("board/neopixel unavailable; run this on the Pi")
 
-    print(f"leds: D18, {LED_COUNT} pixels")
+    print(f"leds worker: clearing GPIO{LED_GPIO_PIN}", flush=True)
     release_gpio_pin(LED_GPIO_PIN)
     pixels = None
     for attempt in range(2):
         try:
+            print("leds worker: initialising NeoPixel", flush=True)
             pixels = neopixel.NeoPixel(board.D18, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
             break
         except RuntimeError as exc:
@@ -433,7 +503,59 @@ async def test_leds(duration: float) -> None:
     print("leds: off")
 
 
-async def test_speaker(command: str, audio_device: str, auto_setup: bool) -> None:
+async def test_leds(duration: float, force: bool) -> None:
+    if os.environ.get(LED_WORKER_ENV) == "1":
+        await test_leds_direct(duration)
+        return
+
+    print(f"leds: D18, {LED_COUNT} pixels")
+    issues = led_safety_issues()
+    if issues and not force:
+        issue_text = "\n".join(f"- {issue}" for issue in issues)
+        raise RuntimeError(
+            "LED test skipped to avoid leaving GPIO18 stuck busy:\n"
+            f"{issue_text}\n"
+            "Fix the issue or rerun with --force-leds."
+        )
+
+    env = {**os.environ, LED_WORKER_ENV: "1", "PYTHONUNBUFFERED": "1"}
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        __file__,
+        "--led-worker",
+        "--duration",
+        str(duration),
+        env=env,
+    )
+
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=LED_WORKER_TIMEOUT_S)
+    except asyncio.TimeoutError as exc:
+        proc.terminate()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(proc.wait(), timeout=1.0)
+        if proc.returncode is None:
+            proc.kill()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(proc.wait(), timeout=1.0)
+        worker_state = run_quiet_command(["ps", "-o", "pid,stat,cmd", "-p", str(proc.pid)])
+        raise RuntimeError(
+            "LED worker hung inside the NeoPixel backend. Check for stuck python processes, GPIO18/PWM conflicts, "
+            f"and whether audio PWM is enabled on the Pi. Worker status:\n{worker_state}"
+        ) from exc
+
+    if proc.returncode:
+        raise RuntimeError(f"LED worker failed with exit code {proc.returncode}")
+
+
+async def test_speaker(
+    command: str,
+    audio_device: str,
+    auto_setup: bool,
+    mixer_control: str,
+    volume_percent: int,
+) -> None:
+    set_speaker_volume(audio_device, mixer_control, volume_percent)
     parts = resolve_speaker_command(command, audio_device, auto_setup)
     print(f"speaker: {shlex.join(parts)}")
     try:
@@ -508,10 +630,16 @@ async def run_selected(args: argparse.Namespace) -> None:
         "preflight": lambda: test_preflight(args),
         "nebuliser_1": lambda: test_nebuliser("nebuliser_1", NEBULISERS["nebuliser_1"], args.duration),
         "nebuliser_2": lambda: test_nebuliser("nebuliser_2", NEBULISERS["nebuliser_2"], args.duration),
-        "speaker": lambda: test_speaker(args.speaker_command, args.audio_device, args.auto_setup),
+        "speaker": lambda: test_speaker(
+            args.speaker_command,
+            args.audio_device,
+            args.auto_setup,
+            args.mixer_control,
+            args.volume,
+        ),
         "haptic_motor": lambda: test_haptic_motor(args.duration, args.intensity),
         "watch_buzz": lambda: test_watch_buzz(args.ble_timeout, args.auto_setup),
-        "leds": lambda: test_leds(args.duration),
+        "leds": lambda: test_leds(args.duration, args.force_leds),
     }
 
     names = list(tests) if args.stimulus == "all" else [args.stimulus]
@@ -544,6 +672,10 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_AUDIO_DEVICE,
         help="ALSA device for speaker-test: auto, default, or e.g. plughw:1,0",
     )
+    parser.add_argument("--mixer-control", default=DEFAULT_MIXER_CONTROL, help="ALSA mixer control to set")
+    parser.add_argument("--volume", type=int, default=DEFAULT_VOLUME_PERCENT, help="Speaker test volume percent")
+    parser.add_argument("--force-leds", action="store_true", help="Run NeoPixel test even when safety checks warn")
+    parser.add_argument("--led-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--no-auto-setup",
         action="store_false",
@@ -557,8 +689,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     install_signal_cleanup()
+    args = parse_args()
     try:
-        asyncio.run(run_selected(parse_args()))
+        if args.led_worker:
+            asyncio.run(test_leds_direct(args.duration))
+        else:
+            asyncio.run(run_selected(args))
     except KeyboardInterrupt:
         print("\ninterrupted; cleanup requested", file=sys.stderr)
     finally:
