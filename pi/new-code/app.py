@@ -17,6 +17,7 @@ DISCONNECT_TIMEOUT_S = 15 * 60
 # Protocol values we currently accept.
 VALID_STAGES = ["unknown", "not_worn", "awake", "light_sleep", "deep_sleep", "rem"]
 VALID_STIMULI = ["sound", "smell", "light", "pi_motor", "watch_haptic"]
+DEMO_STAGE_SEQUENCE = ["awake", "light_sleep", "deep_sleep", "rem"]
 
 # Packet normalisation, kept fairly simple for scope reasons
 _STAGE_ALIASES = {
@@ -61,6 +62,17 @@ def _as_float(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     return None
+
+
+def _normalise_stages(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return DEMO_STAGE_SEQUENCE.copy()
+    stages: list[str] = []
+    for item in value:
+        stage = _normalise_stage(str(item))
+        if stage and stage not in stages:
+            stages.append(stage)
+    return stages or DEMO_STAGE_SEQUENCE.copy()
 
 
 def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
@@ -111,22 +123,34 @@ def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
         return {"kind": "start"}
     if cmd == "stop":
         return {"kind": "stop"}
+    if cmd in {"demo_run", "demo_start"}:
+        dwell_sec = _as_float(packet.get("dwell_sec"))
+        cycles = _as_int(packet.get("cycles"))
+        return {
+            "kind": "demo_run",
+            "stages": _normalise_stages(packet.get("stages")),
+            "dwell_sec": dwell_sec if dwell_sec is not None else 0.35,
+            "cycles": cycles if cycles is not None else 1,
+            "auto_start": packet.get("auto_start", True) is not False,
+        }
+    if cmd in {"demo_stop", "demo_cancel"}:
+        return {"kind": "demo_stop"}
 
     # Accept explicit stage command and simple stage updates.
     if cmd == "stage":
         stage = _normalise_stage(str(packet.get("stage", "")))
         if stage:
-            return {"kind": "stage", "stage": stage}
+            return {"kind": "stage", "stage": stage, "demo_fast": packet.get("demo_fast", False) is True}
 
     if "stage" in packet:
         stage = _normalise_stage(str(packet.get("stage", "")))
         if stage:
-            return {"kind": "stage", "stage": stage}
+            return {"kind": "stage", "stage": stage, "demo_fast": packet.get("demo_fast", False) is True}
 
     # Also allow stage names directly in cmd for manual testing.
     stage_from_cmd = _normalise_stage(cmd)
     if stage_from_cmd:
-        return {"kind": "stage", "stage": stage_from_cmd}
+        return {"kind": "stage", "stage": stage_from_cmd, "demo_fast": packet.get("demo_fast", False) is True}
 
     return None
 
@@ -140,6 +164,8 @@ async def run_single_stimulus(
     db,
     session_id: int | None,
     log,
+    *,
+    demo_fast: bool = False,
 ) -> None:
     #Run one stage/stimulus module and log its event.
     #Each stage/stimulus module owns its own logic so we process them seperately
@@ -149,6 +175,7 @@ async def run_single_stimulus(
         "stimulus": stimulus,
         "send_watch_json": ble_transport.send_json,
         "log": log.getChild(stimulus),
+        "demo_fast": demo_fast,
     }
     module_name = f"stages.{stage}.{stimulus}"
     module = importlib.import_module(module_name)
@@ -167,7 +194,15 @@ async def run_single_stimulus(
     log.info("stage=%s stimulus=%s action=%s success=%s", stage, stimulus, action, success)
 
 
-async def run_stage(stage: str, ble_transport, db, session_id: int | None, log) -> None:
+async def run_stage(
+    stage: str,
+    ble_transport,
+    db,
+    session_id: int | None,
+    log,
+    *,
+    demo_fast: bool = False,
+) -> None:
     #Run all stimuli for a stage at the same time, see above
     await asyncio.gather(
         *[
@@ -178,6 +213,7 @@ async def run_stage(stage: str, ble_transport, db, session_id: int | None, log) 
                 db=db,
                 session_id=session_id,
                 log=log,
+                demo_fast=demo_fast,
             )
             for stimulus in VALID_STIMULI
         ]
@@ -204,6 +240,7 @@ class MasterApp:
             on_disconnected=self._on_ble_disconnected,
             log=log.getChild("ble"),
         )
+        self.demo_task: asyncio.Task | None = None
 
     async def _on_ble_packet(self, packet: dict) -> None:
         self.log.debug("app rx raw packet: %s", packet)
@@ -320,6 +357,19 @@ class MasterApp:
         if kind == "stop":
             await self.stop_session(reason="watch_stop")
             return
+
+        if kind == "demo_run":
+            await self.start_demo_script(
+                stages=canonical.get("stages", DEMO_STAGE_SEQUENCE),
+                dwell_sec=canonical.get("dwell_sec", 0.35),
+                cycles=canonical.get("cycles", 1),
+                auto_start=canonical.get("auto_start", True),
+            )
+            return
+
+        if kind == "demo_stop":
+            await self.stop_demo_script()
+            return
         #For our sleep stages, gives us the transitions and updates the current stage accordingly
         if kind == "stage" and self.state == "running":
             self.current_stage = canonical["stage"]
@@ -329,6 +379,7 @@ class MasterApp:
                 db=self.db,
                 session_id=self.session_id,
                 log=self.log.getChild("stage"),
+                demo_fast=canonical.get("demo_fast", False),
             )
 
     #creating a new db session, straightforward
@@ -344,6 +395,7 @@ class MasterApp:
     async def stop_session(self, reason: str) -> None:
         if self.state != "running":
             return
+        await self.stop_demo_script()
 
         if self.session_id is not None:
             self.db.stop_session(session_id=self.session_id, reason=reason)
@@ -352,15 +404,73 @@ class MasterApp:
         self.session_id = None
         self.state = "idle"
 
+    async def start_demo_script(
+        self,
+        stages: list[str],
+        dwell_sec: float,
+        cycles: int,
+        auto_start: bool,
+    ) -> None:
+        await self.stop_demo_script()
+
+        if auto_start and self.state != "running":
+            await self.start_session()
+
+        if self.state != "running":
+            self.log.info("demo run skipped: session not running")
+            return
+
+        self.demo_task = asyncio.create_task(
+            self._run_demo_script(stages=stages, dwell_sec=dwell_sec, cycles=cycles),
+            name="demo-script",
+        )
+
+    async def stop_demo_script(self) -> None:
+        if self.demo_task is None:
+            return
+        self.demo_task.cancel()
+        try:
+            await self.demo_task
+        except asyncio.CancelledError:
+            pass
+        self.demo_task = None
+        self.log.info("demo script stopped")
+
+    async def _run_demo_script(self, stages: list[str], dwell_sec: float, cycles: int) -> None:
+        self.log.info("demo script start stages=%s dwell=%.2fs cycles=%s", stages, dwell_sec, cycles)
+        try:
+            for _ in range(max(1, cycles)):
+                for stage in stages:
+                    self.current_stage = stage
+                    await run_stage(
+                        stage=stage,
+                        ble_transport=self.ble,
+                        db=self.db,
+                        session_id=self.session_id,
+                        log=self.log.getChild("demo"),
+                        demo_fast=True,
+                    )
+                    if dwell_sec > 0:
+                        await asyncio.sleep(dwell_sec)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self.demo_task = None
+            self.log.info("demo script completed")
+
     #I mean, cmon
     async def shutdown(self) -> None:
+        await self.stop_demo_script()
         self.ble.request_stop()
         self.db.close()
 
     async def run_cli_test_mode(self) -> None:
         #This mode is a way to test stuff without needing the ble
         self.log.info("CLI test mode started")
-        self.log.info("commands: start, stop, stage <name>, fire <stimulus>, haptic [ms] [strength], status, quit")
+        self.log.info(
+            "commands: start, stop, stage <name>, demo_run, demo_stop, fire <stimulus>, "
+            "haptic [ms] [strength], status, quit"
+        )
 
         while True:
             #Gives us an interface with a variety of commands you can use to test in the command line
@@ -383,7 +493,15 @@ class MasterApp:
                 continue
 
             if cmd == "stage" and len(parts) >= 2:
-                await self.handle_packet({"stage": parts[1]})
+                await self.handle_packet({"stage": parts[1], "demo_fast": True})
+                continue
+
+            if cmd == "demo_run":
+                await self.handle_packet({"cmd": "demo_run"})
+                continue
+
+            if cmd == "demo_stop":
+                await self.handle_packet({"cmd": "demo_stop"})
                 continue
             #This one is less obvious so, this basically lets us bypass packets entierly and just jump to a sleep stage
             if cmd == "fire" and len(parts) >= 2:

@@ -26,13 +26,15 @@ The parser currently accepts simple JSON forms:
 - `{"cmd":"stop"}`
 - `{"cmd":"stage","stage":"light_sleep"}`
 - `{"stage":"deep_sleep"}`
+- `{"cmd":"demo_run","stages":["awake","light_sleep","deep_sleep","rem"],"dwell_sec":0.35,"cycles":1}`
+- `{"cmd":"demo_stop"}`
 
 Also accepted for convenience in test mode:
 
 - `{"cmd":"light"}` -> treated as `light_sleep`
 - `{"cmd":"deep"}` -> treated as `deep_sleep`
 
-Dreamstream telemetry from the watch is accepted:
+Dreamstream telemetry from the regular watch app is accepted:
 
 - `{"t":"dreamstream","seq":1,"ts":1773846600,"status":3,...}`
 
@@ -42,6 +44,8 @@ For dreamstream packets, the app:
 - maps numeric `status` to stage names used by this codebase
 - updates `current_stage` each packet
 - runs stage actions only on stage change while the session is running
+
+The separate demo control watch app in `watch/demo_app_loader_files/` does not run sleep detection or send telemetry. It only sends the simple control packets listed above.
 
 ## Run
 
@@ -79,6 +83,22 @@ In CLI mode:
 - `status` shows app state plus `ble_connected=True/False`
 - `haptic 120` sends a direct 120ms watch haptic command
 - `start` then `stage rem` runs the REM stage stimuli using the active BLE link
+- `demo_run` starts a fast scripted demo pass of all major stages
+- `demo_stop` cancels an active scripted demo
+
+## Demo mode notes
+
+`demo_run` is intended for live demos where you want one tap to run all stages without waiting for real sleep detection.
+
+- It auto-starts a session when needed.
+- It runs stimuli for each requested stage in order (`awake`, `light_sleep`, `deep_sleep`, `rem` by default).
+- It uses a `demo_fast` context so stage modules can shorten internal waits.
+
+You can also trigger individual stage runs manually with:
+
+```json
+{"cmd":"stage","stage":"rem","demo_fast":true}
+```
 
 ## Run on boot on the Pi
 

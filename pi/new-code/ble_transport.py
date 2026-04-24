@@ -159,9 +159,12 @@ class BleTransport:
             return False
         #As long as the connection is secure it writes the to the BLE data and locks it so it doesn't concurrently write things by mistake
         payload_json = json.dumps(payload, separators=(",", ":"))
+        # Use the regular app bridge when both apps are installed; the demo
+        # bridge keeps demo-only installs self-contained.
         command = (
-            "if(global.dreamstreamCmdBridge&&global.dreamstreamCmdBridge.handlePacket)"
-            f"global.dreamstreamCmdBridge.handlePacket({payload_json})"
+            f"var p={payload_json};"
+            "var b=global.dreamstreamCmdBridge||global.oddsocksDemoCmdBridge;"
+            "if(b&&b.handlePacket)b.handlePacket(p)"
             "\n"
         )
         packet = command.encode("utf-8")
