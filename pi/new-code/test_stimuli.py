@@ -38,6 +38,7 @@ SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
 DEFAULT_AUDIO_DEVICE = "plughw:1,0"
 ALL_CYCLE_GAP_S = 10.0
+BLE_KEEPALIVE_INTERVAL_S = 2.0
 BLUETOOTH_SETUP_COMMANDS = (
     ("rfkill", "unblock", "bluetooth"),
     ("systemctl", "start", "bluetooth"),
@@ -506,14 +507,49 @@ async def test_watch_buzz(timeout: float, auto_setup: bool) -> None:
             pass
 
 
-async def test_watch_buzz_connected(ble: BleTransport, duration: float) -> None:
-    sent = await ble.send_json(
-        {"cmd": "buzz", "buzz": int(duration * 1000), "intensity": 80}
-    )
+async def test_watch_buzz_connected(ble: BleTransport, task: asyncio.Task, duration: float, timeout: float) -> None:
+    await wait_for_watch_connected(ble, task, timeout)
+    payload = {"cmd": "buzz", "buzz": int(duration * 1000), "intensity": 80}
+    sent = await ble.send_json(payload)
     if not sent:
-        raise RuntimeError("watch buzz command was not sent")
+        await wait_for_watch_connected(ble, task, timeout)
+        sent = await ble.send_json(payload)
+    if not sent:
+        raise RuntimeError("watch buzz command was not sent after reconnect wait")
     await asyncio.sleep(duration)
     print("watch buzz: sent")
+
+
+async def wait_for_watch_connected(ble: BleTransport, task: asyncio.Task, timeout: float) -> None:
+    if ble.connected:
+        return
+
+    print("watch buzz: waiting for BLE reconnect")
+    start = asyncio.get_running_loop().time()
+    while not ble.connected:
+        if task.done():
+            exc = task.exception()
+            detail = f"{exc}" if exc else "BLE worker stopped"
+            raise RuntimeError(detail)
+        if asyncio.get_running_loop().time() - start > timeout:
+            raise RuntimeError("timed out waiting for watch BLE reconnect")
+        await asyncio.sleep(0.2)
+    print("watch buzz: reconnected")
+
+
+async def keep_watch_alive_during_gap(ble: BleTransport, task: asyncio.Task, gap: float) -> None:
+    end = asyncio.get_running_loop().time() + gap
+    while True:
+        remaining = end - asyncio.get_running_loop().time()
+        if remaining <= 0:
+            return
+        await asyncio.sleep(min(BLE_KEEPALIVE_INTERVAL_S, remaining))
+        if task.done():
+            exc = task.exception()
+            detail = f"{exc}" if exc else "BLE worker stopped"
+            raise RuntimeError(detail)
+        if ble.connected:
+            await ble.send_json({"cmd": "keepalive"})
 
 
 async def connect_watch_ble(
@@ -552,6 +588,12 @@ async def connect_watch_ble(
 
 
 async def run_all_simultaneous(args: argparse.Namespace) -> None:
+    async def on_connected() -> None:
+        print("watch buzz: BLE connected")
+
+    async def on_disconnected() -> None:
+        print("watch buzz: BLE disconnected")
+
     async def noop() -> None:
         return None
 
@@ -564,13 +606,14 @@ async def run_all_simultaneous(args: argparse.Namespace) -> None:
         args.auto_setup,
         log,
         on_packet,
-        noop,
-        noop,
+        on_connected,
+        on_disconnected,
     )
 
     try:
         for cycle in range(args.cycles):
             print(f"\n== simultaneous cycle {cycle + 1}/{args.cycles} ==")
+            await wait_for_watch_connected(ble, task, args.ble_timeout)
             actions: dict[str, Awaitable[None]] = {
                 "nebuliser_1": test_nebuliser(
                     "nebuliser_1",
@@ -584,7 +627,7 @@ async def run_all_simultaneous(args: argparse.Namespace) -> None:
                 ),
                 "speaker": test_speaker_duration(args.speaker_command, args.audio_device, args.duration),
                 "haptic_motor": test_haptic_motor(args.duration, args.intensity),
-                "watch_buzz": test_watch_buzz_connected(ble, args.duration),
+                "watch_buzz": test_watch_buzz_connected(ble, task, args.duration, args.ble_timeout),
                 "leds": test_leds(args.duration, args.force_leds),
             }
             results = await asyncio.gather(*actions.values(), return_exceptions=True)
@@ -598,7 +641,7 @@ async def run_all_simultaneous(args: argparse.Namespace) -> None:
             run_cleanups()
             if cycle < args.cycles - 1:
                 print(f"waiting {args.gap:.1f}s")
-                await asyncio.sleep(args.gap)
+                await keep_watch_alive_during_gap(ble, task, args.gap)
             if failed:
                 print("simultaneous cycle completed with failures")
     finally:
