@@ -486,7 +486,7 @@ class MasterApp:
         
         from hardware_setup import init_pygame_audio
         try:
-            init_pygame_audio()
+            await asyncio.wait_for(asyncio.to_thread(init_pygame_audio), timeout=3.0)
         except Exception as e:
             self.log.error(f"Failed to init pygame audio: {e}")
             

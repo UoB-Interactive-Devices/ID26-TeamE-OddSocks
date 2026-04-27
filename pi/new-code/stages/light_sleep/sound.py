@@ -23,7 +23,7 @@ async def run(context: dict) -> tuple[str, str, bool]:
 
     try:
         from hardware_setup import init_pygame_audio
-        init_pygame_audio()
+        await asyncio.wait_for(asyncio.to_thread(init_pygame_audio), timeout=3.0)
 
         channel = getattr(sys, "_background_sound_channel", None)
         if channel is None or not channel.get_busy():
