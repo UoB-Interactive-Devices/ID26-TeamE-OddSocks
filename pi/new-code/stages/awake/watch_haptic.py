@@ -1,6 +1,9 @@
 """Stage 'awake' + stimulus 'watch_haptic'.
 
 This file owns the logic for this exact stage/stimulus combination.
+
+Example intent: a small wrist cue can act as a callback/reality-check anchor,
+but should stay gentle around sleep onset.
 """
 
 from __future__ import annotations

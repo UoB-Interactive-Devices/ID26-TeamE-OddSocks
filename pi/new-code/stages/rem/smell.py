@@ -1,6 +1,9 @@
 """Stage 'rem' + stimulus 'smell'.
 
 This file owns the logic for this exact stage/stimulus combination.
+
+REM smell intent: pulse peppermint 5s on / 25s off for a 15 minute REM window.
+Peppermint acts as a reality-check cue; gaps reduce habituation.
 """
 
 from __future__ import annotations

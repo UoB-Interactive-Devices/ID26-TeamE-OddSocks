@@ -1,1 +1,1 @@
-"""Placeholder modules for stage: awake."""
+"""Stage modules for awake/pre-sleep cues."""

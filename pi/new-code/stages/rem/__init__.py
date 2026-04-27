@@ -1,1 +1,1 @@
-"""Placeholder modules for stage: rem."""
+"""Stage modules for REM cues."""

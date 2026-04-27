@@ -1,15 +1,12 @@
 """Stage 'unknown' + stimulus 'sound'.
 
 This file owns the logic for this exact stage/stimulus combination.
+
+Safety state: stage is unknown, so do not emit cues.
 """
 
 from __future__ import annotations
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    # TODO: replace this placeholder with real logic for unknown/sound.
-    # context keys: stage, stimulus, send_watch_json, log
-    action = "placeholder"
-    details = "TODO: implement unknown/sound behaviour"
-    success = True
-    return action, details, success
+    return "none", "No sound cue for unknown stage", True

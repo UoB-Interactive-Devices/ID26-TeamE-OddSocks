@@ -1,1 +1,1 @@
-"""Placeholder modules for stage: light_sleep."""
+"""Stage modules for light sleep cues."""

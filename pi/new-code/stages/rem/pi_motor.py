@@ -3,6 +3,10 @@ import lgpio
 import random
 import asyncio
 
+# REM below-pillow haptic intent: tactile dream cue after REM detection, using
+# short irregular/ramping bursts. This mirrors the watch haptic idea but uses
+# the pillow motor for a stronger physical cue.
+
 CHIP = 0
 PIN = 23
 delayAfterRem = 3 * 60 #3mins

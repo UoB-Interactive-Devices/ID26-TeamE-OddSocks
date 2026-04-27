@@ -14,6 +14,8 @@ Status key: `[x]` done, `[ ]` still needed.
 - [x] SPI LED prerequisite check added for `/dev/spidev0.0`.
 - [x] `test_stimuli.py` now uses the same shared Bluetooth/audio/preflight helpers.
 - [x] README updated with the new main-app setup flags.
+- [x] Stage files now include team intent notes from the research table.
+- [x] Old placeholder stage files now return either explicit no-op or safe example scaffold behavior.
 - [x] Syntax check passes:
   `python3 -m py_compile pi/new-code/app.py pi/new-code/ble_transport.py pi/new-code/db.py pi/new-code/main.py pi/new-code/test_stimuli.py pi/new-code/hardware_setup.py pi/new-code/stages/*/*.py`
 
@@ -36,47 +38,36 @@ Status key: `[x]` done, `[ ]` still needed.
 
 ## Stage Files
 
-### Filled
+### Filled / Existing Hardware Behavior
 
 - [x] `stages/awake/watch_haptic.py`
 - [x] `stages/rem/watch_haptic.py`
-
-### Partial
-
 - [ ] `stages/awake/smell.py` - works, but smell carry-over cleanup needs fixing.
 - [ ] `stages/rem/smell.py` - works, but long background behavior needs demo review.
 - [ ] `stages/rem/light.py` - SPI LEDs implemented, but cleanup/preflight should match `test_stimuli.py`.
 - [ ] `stages/rem/pi_motor.py` - haptic implemented, but lacks `demo_fast` and safer cleanup.
 
-### Intentional No-op
+### Safe Example Scaffold
 
-- [ ] `stages/light_sleep/smell.py` - should also stop previous smell task.
-- [ ] `stages/deep_sleep/smell.py` - should also stop previous smell task.
+- [x] `stages/awake/sound.py` - logs the intended masking sound/reality-chime structure.
+- [x] `stages/light_sleep/sound.py` - logs the intended quiet masking sound structure.
+- [x] `stages/rem/sound.py` - logs the intended REM callback chime structure.
 
-### Still Placeholder
+### Intentional No-op / Keep Off
 
-- [ ] `stages/awake/light.py`
-- [ ] `stages/awake/pi_motor.py`
-- [ ] `stages/awake/sound.py`
-- [ ] `stages/light_sleep/light.py`
-- [ ] `stages/light_sleep/pi_motor.py`
-- [ ] `stages/light_sleep/sound.py`
-- [ ] `stages/light_sleep/watch_haptic.py`
-- [ ] `stages/deep_sleep/light.py`
-- [ ] `stages/deep_sleep/pi_motor.py`
-- [ ] `stages/deep_sleep/sound.py`
-- [ ] `stages/deep_sleep/watch_haptic.py`
-- [ ] `stages/rem/sound.py`
-- [ ] `stages/not_worn/light.py`
-- [ ] `stages/not_worn/pi_motor.py`
-- [ ] `stages/not_worn/smell.py`
-- [ ] `stages/not_worn/sound.py`
-- [ ] `stages/not_worn/watch_haptic.py`
-- [ ] `stages/unknown/light.py`
-- [ ] `stages/unknown/pi_motor.py`
-- [ ] `stages/unknown/smell.py`
-- [ ] `stages/unknown/sound.py`
-- [ ] `stages/unknown/watch_haptic.py`
+- [x] `stages/awake/light.py`
+- [x] `stages/awake/pi_motor.py`
+- [x] `stages/light_sleep/light.py`
+- [x] `stages/light_sleep/pi_motor.py`
+- [x] `stages/light_sleep/watch_haptic.py`
+- [ ] `stages/light_sleep/smell.py` - no-op, but should also stop previous smell task.
+- [x] `stages/deep_sleep/light.py`
+- [x] `stages/deep_sleep/pi_motor.py`
+- [x] `stages/deep_sleep/sound.py`
+- [x] `stages/deep_sleep/watch_haptic.py`
+- [ ] `stages/deep_sleep/smell.py` - no-op, but should also stop previous smell task.
+- [x] `stages/not_worn/*.py`
+- [x] `stages/unknown/*.py`
 
 ## If Time Allows
 
@@ -84,7 +75,7 @@ Status key: `[x]` done, `[ ]` still needed.
 - [ ] Implement one clear visible/tactile cue for `deep_sleep`.
 - [ ] Implement demo speaker behavior using the shared DAC helper.
 - [ ] Decide whether watch `STOP` should stop the whole session or only cancel the demo script.
-- [ ] Mark unused placeholder/no-op stage files clearly so logs do not imply unfinished behavior succeeded.
+- [x] Mark unused placeholder/no-op stage files clearly so logs do not imply unfinished behavior succeeded.
 - [ ] Document Pi OS prerequisites in one place: `lgpio`, `bluetoothctl`, `rfkill`, `aplay`, `speaker-test`, `amixer`, SPI enabled.
 - [ ] Optional: show a Pi acknowledgement on the watch after commands are received.
 - [ ] Centralize hardware constants for pins, LED count, haptic pin, and audio defaults.

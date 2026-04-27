@@ -1,4 +1,6 @@
-#figure out how to buzz watch
+# REM wrist haptic intent: tactile dream cue after REM detection, using short
+# irregular/ramping bursts. Wrist haptic may be more noticeable than pillow
+# haptic, so keep demo/prototype durations conservative.
 from __future__ import annotations
 import asyncio
 import random

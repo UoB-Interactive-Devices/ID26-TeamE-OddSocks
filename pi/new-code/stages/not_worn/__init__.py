@@ -1,1 +1,1 @@
-"""Placeholder modules for stage: not_worn."""
+"""Stage modules for the not-worn safety state."""

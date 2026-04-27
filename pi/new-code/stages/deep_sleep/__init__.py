@@ -1,1 +1,1 @@
-"""Placeholder modules for stage: deep_sleep."""
+"""Stage modules for deep sleep cues."""

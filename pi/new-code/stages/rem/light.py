@@ -1,6 +1,10 @@
 from __future__ import annotations
 import asyncio
 
+# REM light intent: cue only after REM has been detected, with a delay offset.
+# Use short red/amber pulses; keep LEDs off otherwise. Later REM cycles can
+# tolerate slightly more stimulation than early REM.
+
 try:
     import board
     import neopixel_spi

@@ -1,1 +1,1 @@
-"""Placeholder modules for stage: unknown."""
+"""Stage modules for the unknown-stage safety state."""
