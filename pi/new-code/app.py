@@ -498,10 +498,13 @@ class MasterApp:
                     if stage in DEMO_AUDIO and not (stage == "awake" and dwell_sec <= 5):
                         audio_path = DEMO_AUDIO[stage]
                         if os.path.exists(audio_path):
-                            sound = pygame.mixer.Sound(audio_path)
-                            channel = pygame.mixer.find_channel()
-                            if channel:
-                                channel.play(sound)
+                            try:
+                                sound = pygame.mixer.Sound(audio_path)
+                                channel = pygame.mixer.find_channel()
+                                if channel:
+                                    channel.play(sound)
+                            except Exception as e:
+                                self.log.error(f"Failed to play {audio_path}: {e}")
                     
                     self.current_stage = stage
                     await run_stage(
@@ -517,15 +520,20 @@ class MasterApp:
             
             # Play thank you at the end of the demo
             if os.path.exists(THANK_YOU_AUDIO):
-                sound = pygame.mixer.Sound(THANK_YOU_AUDIO)
-                channel = pygame.mixer.find_channel()
-                if channel:
-                    channel.play(sound)
+                try:
+                    sound = pygame.mixer.Sound(THANK_YOU_AUDIO)
+                    channel = pygame.mixer.find_channel()
+                    if channel:
+                        channel.play(sound)
+                except Exception as e:
+                    self.log.error(f"Failed to play {THANK_YOU_AUDIO}: {e}")
             
             # Stop the session after all cycles complete
             await self.stop_session(reason="demo_complete")
         except asyncio.CancelledError:
             raise
+        except Exception as exc:
+            self.log.error(f"Demo script crashed unexpectedly: {exc}", exc_info=True)
         finally:
             self.demo_task = None
             self.log.info("demo script completed")
