@@ -3,22 +3,22 @@ import asyncio
 
 try:
     import board
-    import neopixel
+    import neopixel_spi
 except Exception as exc:  # board can fail during import on non-Pi machines.
     board = None
-    neopixel = None
+    neopixel_spi = None
     HARDWARE_IMPORT_ERROR = exc
 else:
     HARDWARE_IMPORT_ERROR = None
 
 delayAftrRem = 3 * 60 #3mins
-NoLEDs = 10
+NoLEDs = 8
 remCycleNo = 3
 
 def make_pixels():
-    if board is None or neopixel is None:
+    if board is None or neopixel_spi is None:
         return None
-    return neopixel.NeoPixel(board.D21, NoLEDs, brightness=0.01)
+    return neopixel_spi.NeoPixel_SPI(board.SPI(), NoLEDs, brightness=0.01)
 
 async def run(context: dict) -> tuple[str, str, bool]:
     #commented out for testing
