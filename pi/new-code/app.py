@@ -497,14 +497,38 @@ class MasterApp:
                     dwell_sec = float(step.get("dwell_sec", 0))
                     
                     # Play stage announcement if present, skipping the short final awake stage
-                    if stage in DEMO_AUDIO and not (stage == "awake" and dwell_sec <= 5):
+                    is_final_awake = (stage == "awake" and dwell_sec <= 5)
+                    sys._demo_is_final = is_final_awake
+                    
+                    if is_final_awake:
+                        # Clean up background tasks directly instead of running the stage
+                        smell_task = getattr(sys, "_smell_mist_task", None)
+                        if smell_task is not None and not smell_task.done():
+                            smell_task.cancel()
+                            
+                        bg_channel = getattr(sys, "_background_sound_channel", None)
+                        if bg_channel and bg_channel.get_busy():
+                            bg_channel.fadeout(2000)
+                            
+                        # Play "Awake"
+                        if "awake" in DEMO_AUDIO and os.path.exists(DEMO_AUDIO["awake"]):
+                            try:
+                                sound = pygame.mixer.Sound(DEMO_AUDIO["awake"])
+                                sys._announcement_sound = sound
+                                sound.play()
+                            except Exception as e:
+                                self.log.error(f"Failed to play awake final: {e}")
+                                
+                        await asyncio.sleep(2) # Give it 2s to say Awake
+                        break # Skip run_stage and go straight to Thank You
+                    
+                    if stage in DEMO_AUDIO and not is_final_awake:
                         audio_path = DEMO_AUDIO[stage]
                         if os.path.exists(audio_path):
                             try:
                                 sound = pygame.mixer.Sound(audio_path)
-                                channel = pygame.mixer.find_channel()
-                                if channel:
-                                    channel.play(sound)
+                                sys._announcement_sound = sound # Prevent GC
+                                sound.play()
                             except Exception as e:
                                 self.log.error(f"Failed to play {audio_path}: {e}")
                     
@@ -524,9 +548,8 @@ class MasterApp:
             if os.path.exists(THANK_YOU_AUDIO):
                 try:
                     sound = pygame.mixer.Sound(THANK_YOU_AUDIO)
-                    channel = pygame.mixer.find_channel()
-                    if channel:
-                        channel.play(sound)
+                    sys._thank_you_sound = sound
+                    sound.play()
                 except Exception as e:
                     self.log.error(f"Failed to play {THANK_YOU_AUDIO}: {e}")
             

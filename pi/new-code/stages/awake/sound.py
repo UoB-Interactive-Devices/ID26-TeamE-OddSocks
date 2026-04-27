@@ -38,6 +38,8 @@ async def run(context: dict) -> tuple[str, str, bool]:
                 if channel:
                     channel.play(sound, loops=-1, fade_ms=2000)
                     sys._background_sound_channel = channel
+                    # Store the sound object itself so it doesn't get garbage collected!
+                    sys._background_sound = sound
                     log.info("awake/sound wave soundscape started")
             else:
                 log.warning("awake/sound wave_noise.wav not found at %s", WAVE_FILE)
@@ -50,10 +52,9 @@ async def run(context: dict) -> tuple[str, str, bool]:
 
         if os.path.exists(CHIME_FILE):
             chime = pygame.mixer.Sound(CHIME_FILE)
-            chime_channel = pygame.mixer.find_channel()
-            if chime_channel:
-                chime_channel.play(chime)
-                log.info("awake/sound wind chimes played")
+            sys._chime_sound = chime  # Keep reference so it plays through completely
+            chime.play()
+            log.info("awake/sound wind chimes played")
         else:
             log.warning("awake/sound wind_chimes.wav not found at %s", CHIME_FILE)
 

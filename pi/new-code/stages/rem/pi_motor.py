@@ -26,7 +26,7 @@ async def run(context: dict) -> tuple[str, str, bool]:
         lgpio.tx_pwm(h, PIN, 100, 0)
 
     async def burst():
-        burst_duration = random.uniform(0.5, 0.8) if demo_fast else random.uniform(1.0, 2.0)
+        burst_duration = random.uniform(1.5, 2.0) if demo_fast else random.uniform(1.0, 2.0)
         elapsed = 0
         intensity = 20 
 
@@ -44,8 +44,8 @@ async def run(context: dict) -> tuple[str, str, bool]:
 
     async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
         if demo_fast:
-            bursts = 1
-            gap = 0.1
+            bursts = 3
+            gap = 0.5
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
             await burst()
