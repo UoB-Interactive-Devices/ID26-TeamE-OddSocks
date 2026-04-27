@@ -210,7 +210,7 @@ def led_safety_issues() -> list[str]:
         issues.append(f"GPIO{LED_GPIO_PIN} is already claimed: {line}")
     if config_enables_onboard_audio():
         issues.append(
-            "Pi onboard audio appears enabled via dtparam=audio=on; GPIO18 NeoPixels use PWM and can conflict with it"
+            f"Pi onboard audio appears enabled via dtparam=audio=on; GPIO{LED_GPIO_PIN} NeoPixels can conflict with audio peripherals"
         )
     return issues
 
@@ -378,20 +378,22 @@ async def test_leds_direct(duration: float) -> None:
     if board is None or neopixel is None:
         raise RuntimeError("board/neopixel unavailable; run this on the Pi")
 
-    print(f"leds worker: clearing GPIO{LED_GPIO_PIN}", flush=True)
-    release_gpio_pin(LED_GPIO_PIN)
+    board_pin = getattr(board, f"D{LED_GPIO_PIN}", None)
+    if board_pin is None:
+        raise RuntimeError(f"board.D{LED_GPIO_PIN} is unavailable on this Pi")
+
     pixels = None
     for attempt in range(2):
         try:
             print("leds worker: initialising NeoPixel", flush=True)
-            pixels = neopixel.NeoPixel(board.D21, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
+            pixels = neopixel.NeoPixel(board_pin, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
             break
         except RuntimeError as exc:
             if "GPIO busy" not in str(exc) or attempt:
                 raise RuntimeError(
-                    "GPIO18 is busy even after cleanup. Stop any other script/service using LEDs or audio PWM, then retry leds by itself."
+                    f"GPIO{LED_GPIO_PIN} is busy. Stop any other script/service using LEDs, then retry leds by itself."
                 ) from exc
-            print("leds: GPIO18 busy; clearing pin and retrying once")
+            print(f"leds: GPIO{LED_GPIO_PIN} busy; clearing pin and retrying once")
             release_gpio_pin(LED_GPIO_PIN)
             await asyncio.sleep(0.2)
 
@@ -410,7 +412,6 @@ async def test_leds_direct(duration: float) -> None:
         pixels.show()
         if hasattr(pixels, "deinit"):
             pixels.deinit()
-        release_gpio_pin(LED_GPIO_PIN)
     print("leds: off")
 
 
@@ -419,12 +420,12 @@ async def test_leds(duration: float, force: bool) -> None:
         await test_leds_direct(duration)
         return
 
-    print(f"leds: D21, {LED_COUNT} pixels")
+    print(f"leds: D{LED_GPIO_PIN}, {LED_COUNT} pixels")
     issues = led_safety_issues()
     if issues and not force:
         issue_text = "\n".join(f"- {issue}" for issue in issues)
         raise RuntimeError(
-            "LED test skipped to avoid leaving GPIO18 stuck busy:\n"
+            f"LED test skipped to avoid leaving GPIO{LED_GPIO_PIN} stuck busy:\n"
             f"{issue_text}\n"
             "Fix the issue or rerun with --force-leds."
         )
@@ -451,8 +452,8 @@ async def test_leds(duration: float, force: bool) -> None:
                 await asyncio.wait_for(proc.wait(), timeout=1.0)
         worker_state = run_quiet_command(["ps", "-o", "pid,stat,cmd", "-p", str(proc.pid)])
         raise RuntimeError(
-            "LED worker hung inside the NeoPixel backend. Check for stuck python processes, GPIO18/PWM conflicts, "
-            f"and whether audio PWM is enabled on the Pi. Worker status:\n{worker_state}"
+            f"LED worker hung inside the NeoPixel backend. Check for stuck python processes and GPIO{LED_GPIO_PIN} "
+            f"peripheral conflicts. Worker status:\n{worker_state}"
         ) from exc
 
     if proc.returncode:
