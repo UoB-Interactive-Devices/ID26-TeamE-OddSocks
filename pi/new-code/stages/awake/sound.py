@@ -25,9 +25,8 @@ async def run(context: dict) -> tuple[str, str, bool]:
     demo_fast = context.get("demo_fast", False)
 
     try:
-        if not pygame.mixer.get_init():
-            pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
-            pygame.mixer.init()
+        from hardware_setup import init_pygame_audio
+        init_pygame_audio()
 
         # 1. Background masking wave noise
         channel = getattr(sys, "_background_sound_channel", None)

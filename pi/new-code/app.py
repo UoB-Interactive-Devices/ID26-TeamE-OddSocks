@@ -484,9 +484,11 @@ class MasterApp:
     async def _run_demo_script(self, schedule: list[dict], cycles: int) -> None:
         self.log.info("demo script start schedule=%s cycles=%s", schedule, cycles)
         
-        if not pygame.mixer.get_init():
-            pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
-            pygame.mixer.init()
+        from hardware_setup import init_pygame_audio
+        try:
+            init_pygame_audio()
+        except Exception as e:
+            self.log.error(f"Failed to init pygame audio: {e}")
             
         try:
             for _ in range(max(1, cycles)):

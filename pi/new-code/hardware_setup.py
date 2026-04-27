@@ -153,3 +153,22 @@ def log_or_print(log, level: str, message: str, *args) -> None:
         getattr(log, level)(message, *args)
     else:
         print(message % args if args else message)
+
+
+def init_pygame_audio() -> bool:
+    import os
+    import pygame
+    
+    if pygame.mixer.get_init():
+        return True
+        
+    try:
+        device, _, _ = resolve_audio_device("auto")
+        os.environ["SDL_AUDIODRIVER"] = "alsa"
+        os.environ["AUDIODEV"] = device
+    except Exception:
+        pass
+
+    pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
+    pygame.mixer.init()
+    return True

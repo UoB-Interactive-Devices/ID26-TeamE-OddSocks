@@ -22,9 +22,8 @@ async def run(context: dict) -> tuple[str, str, bool]:
     log = context["log"]
 
     try:
-        if not pygame.mixer.get_init():
-            pygame.mixer.pre_init(frequency=44100, size=-16, channels=1, buffer=2048)
-            pygame.mixer.init()
+        from hardware_setup import init_pygame_audio
+        init_pygame_audio()
 
         channel = getattr(sys, "_background_sound_channel", None)
         if channel is None or not channel.get_busy():
