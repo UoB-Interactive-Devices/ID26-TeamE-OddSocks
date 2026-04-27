@@ -69,12 +69,32 @@ class BleTransport:
 
         #These functions are defined below
         while not self.stop_event.is_set():
-            device = await self._scan_one()
+            try:
+                device = await self._scan_one()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self.log.warning("BLE scan failed: %s", exc)
+                await asyncio.sleep(BLE_RETRY_SLEEP_S)
+                continue
+
             if device is None:
                 await asyncio.sleep(BLE_RETRY_SLEEP_S)
                 continue
 
-            await self._connect_and_listen(device)
+            try:
+                await self._connect_and_listen(device)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self.log.warning("BLE connection/listen failed: %s", exc)
+                was_connected = self.connected
+                self.connected = False
+                self.last_disconnect_monotonic = time.monotonic()
+                self._client = None
+                if was_connected:
+                    await self.on_disconnected()
+
             if not self.stop_event.is_set():
                 await asyncio.sleep(BLE_RETRY_SLEEP_S)
 

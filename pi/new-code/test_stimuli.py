@@ -38,7 +38,6 @@ SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
 DEFAULT_AUDIO_DEVICE = "auto"
 ALL_CYCLE_GAP_S = 10.0
-BLE_KEEPALIVE_INTERVAL_S = 2.0
 BLUETOOTH_SETUP_COMMANDS = (
     ("rfkill", "unblock", "bluetooth"),
     ("systemctl", "start", "bluetooth"),
@@ -519,13 +518,7 @@ async def test_watch_buzz(timeout: float, auto_setup: bool) -> None:
         await asyncio.sleep(0.7)
         print("watch buzz: sent")
     finally:
-        unregister_cleanup(cleanup)
-        ble.request_stop()
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        await stop_watch_ble(ble, task, cleanup)
 
 
 async def test_watch_buzz_connected(ble: BleTransport, task: asyncio.Task, duration: float, timeout: float) -> None:
@@ -556,21 +549,6 @@ async def wait_for_watch_connected(ble: BleTransport, task: asyncio.Task, timeou
             raise RuntimeError("timed out waiting for watch BLE reconnect")
         await asyncio.sleep(0.2)
     print("watch buzz: reconnected")
-
-
-async def keep_watch_alive_during_gap(ble: BleTransport, task: asyncio.Task, gap: float) -> None:
-    end = asyncio.get_running_loop().time() + gap
-    while True:
-        remaining = end - asyncio.get_running_loop().time()
-        if remaining <= 0:
-            return
-        await asyncio.sleep(min(BLE_KEEPALIVE_INTERVAL_S, remaining))
-        if task.done():
-            exc = task.exception()
-            detail = f"{exc}" if exc else "BLE worker stopped"
-            raise RuntimeError(detail)
-        if ble.connected:
-            await ble.send_json({"cmd": "keepalive"})
 
 
 async def connect_watch_ble(
@@ -606,6 +584,18 @@ async def connect_watch_ble(
 
     print("watch buzz: connected")
     return ble, task, cleanup
+
+
+async def stop_watch_ble(ble: BleTransport, task: asyncio.Task, cleanup: Callable[[], None]) -> None:
+    unregister_cleanup(cleanup)
+    ble.request_stop()
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception as exc:
+        print(f"watch buzz: BLE shutdown ignored backend error: {exc}")
 
 
 async def run_all_simultaneous(args: argparse.Namespace) -> None:
@@ -662,17 +652,11 @@ async def run_all_simultaneous(args: argparse.Namespace) -> None:
             run_cleanups()
             if cycle < args.cycles - 1:
                 print(f"waiting {args.gap:.1f}s")
-                await keep_watch_alive_during_gap(ble, task, args.gap)
+                await asyncio.sleep(args.gap)
             if failed:
                 print("simultaneous cycle completed with failures")
     finally:
-        unregister_cleanup(cleanup)
-        ble.request_stop()
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        await stop_watch_ble(ble, task, cleanup)
 
 
 async def test_preflight(args: argparse.Namespace) -> None:
