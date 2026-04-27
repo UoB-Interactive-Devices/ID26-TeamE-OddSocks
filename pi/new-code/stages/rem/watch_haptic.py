@@ -5,14 +5,15 @@ import random
 
 CHIP = 0
 GAP_BETWEEN_BURSTS = 60
-remCycleNo = 2   
+remCycleNo = 2 
+delayAfterRem = 3 * 60 #3mins 
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    #commented out for testing
-    #await asyncio.sleep(delayAftrRem)
     send_watch_json = context["send_watch_json"]
     log = context["log"]
     demo_fast = bool(context.get("demo_fast"))
+    if not demo_fast:
+        await asyncio.sleep(delayAfterRem)
 
     async def buzz(intensity, duration):
         #start buzz at intensity

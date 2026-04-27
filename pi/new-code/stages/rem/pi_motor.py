@@ -5,13 +5,12 @@ import asyncio
 
 CHIP = 0
 PIN = 23
-delayAftrRem = 3 * 60 #3mins
+delayAfterRem = 3 * 60 #3mins
 GAP_BETWEEN_BURSTS = 60
 remCycleNo = 2
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    #commented out for testing
-    #await asyncio.sleep(delayAftrRem)
+    #await asyncio.sleep(delayAfterRem)
     #Using await means the other stage files can run during the gaps
     h = lgpio.gpiochip_open(CHIP)
     lgpio.gpio_claim_output(h, PIN)

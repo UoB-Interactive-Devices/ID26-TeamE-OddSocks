@@ -11,7 +11,7 @@ except Exception as exc:  # board can fail during import on non-Pi machines.
 else:
     HARDWARE_IMPORT_ERROR = None
 
-delayAftrRem = 3 * 60 #3mins
+delayAfterRem = 3 * 60 #3mins
 NoLEDs = 8
 remCycleNo = 3
 
@@ -21,8 +21,7 @@ def make_pixels():
     return neopixel_spi.NeoPixel_SPI(board.SPI(), NoLEDs, brightness=0.01)
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    #commented out for testing
-    #await asyncio.sleep(delayAftrRem)
+    #await asyncio.sleep(delayAfterRem)
     #Using await means the other stage files can run during the gaps
     log = context["log"]
     pixels = make_pixels()
