@@ -364,7 +364,11 @@ async def connect_watch_ble(
             raise RuntimeError(f"{ble_task_status(task)} before connecting; Bluetooth adapter status: {adapter}")
         if asyncio.get_running_loop().time() - start > timeout:
             adapter = run_quiet_command(["bluetoothctl", "show"])
-            raise RuntimeError(f"timed out waiting for watch BLE connection; Bluetooth adapter status: {adapter}")
+            raise RuntimeError(
+                "timed out waiting for watch BLE connection. The watch was found, "
+                "but BlueZ/Bleak did not finish connecting before the timeout; "
+                f"Bluetooth adapter status: {adapter}"
+            )
         await asyncio.sleep(0.2)
 
     print("watch buzz: connected")
@@ -569,7 +573,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--duration", type=float, default=2.0, help="On-time for GPIO/LED/motor tests")
     parser.add_argument("--intensity", type=int, default=70, help="PWM duty percent for haptic motor")
-    parser.add_argument("--ble-timeout", type=float, default=20.0, help="Seconds to wait for Bangle BLE")
+    parser.add_argument("--ble-timeout", type=float, default=60.0, help="Seconds to wait for Bangle BLE")
     parser.add_argument("--speaker-command", default=SPEAKER_COMMAND, help="Command used for speaker test")
     parser.add_argument(
         "--audio-device",
