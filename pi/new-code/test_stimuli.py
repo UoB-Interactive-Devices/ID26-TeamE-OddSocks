@@ -19,6 +19,13 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ble_transport import BleTransport
+from hardware_setup import (
+    DEFAULT_AUDIO_DEVICE,
+    ensure_bluetooth_ready,
+    resolve_speaker_command,
+    run_quiet_command,
+    setup_preflight,
+)
 
 # Hardware config lives here so demo wiring changes are easy to update.
 GPIO_CHIP = 0
@@ -32,13 +39,7 @@ LED_COUNT = 8
 LED_BRIGHTNESS = 0.15
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
-DEFAULT_AUDIO_DEVICE = "auto"
 ALL_CYCLE_GAP_S = 10.0
-BLUETOOTH_SETUP_COMMANDS = (
-    ("rfkill", "unblock", "bluetooth"),
-    ("systemctl", "start", "bluetooth"),
-    ("bluetoothctl", "power", "on"),
-)
 _CLEANUPS: list[Callable[[], None]] = []
 
 try:
@@ -146,96 +147,6 @@ def force_pin_low(pin: int) -> None:
             stderr=subprocess.DEVNULL,
             timeout=1,
         )
-
-
-def run_quiet_command(command: list[str], timeout: float = 2.0) -> str:
-    try:
-        result = subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        return str(exc)
-    output = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
-    return output or f"exit code {result.returncode}"
-
-
-def run_setup_command(command: tuple[str, ...], timeout: float = 5.0) -> tuple[bool, str]:
-    if shutil.which(command[0]) is None:
-        return False, f"{command[0]} not installed"
-    try:
-        result = subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return False, "timed out"
-    output = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
-    return result.returncode == 0, output or f"exit code {result.returncode}"
-
-
-def bluetooth_status() -> str:
-    return run_quiet_command(["bluetoothctl", "show"])
-
-
-def bluetooth_is_powered(status: str | None = None) -> bool:
-    status = bluetooth_status() if status is None else status
-    return "Powered: yes" in status
-
-
-def ensure_bluetooth_ready(auto_setup: bool) -> None:
-    status = bluetooth_status()
-    if bluetooth_is_powered(status):
-        print("bluetooth: powered on")
-        return
-
-    if not auto_setup:
-        raise RuntimeError(f"Bluetooth is not powered; Bluetooth adapter status: {status}")
-
-    print("bluetooth: not powered; trying to unblock/start/power on")
-    for command in BLUETOOTH_SETUP_COMMANDS:
-        ok, output = run_setup_command(command)
-        if ok:
-            print(f"bluetooth: {' '.join(command)} OK")
-        else:
-            print(f"bluetooth: {' '.join(command)} failed - {output}")
-
-    status = bluetooth_status()
-    if not bluetooth_is_powered(status):
-        raise RuntimeError(f"Bluetooth is still not powered; Bluetooth adapter status: {status}")
-
-
-def command_has_audio_device(parts: list[str]) -> bool:
-    return "-D" in parts or any(part.startswith("--device") for part in parts)
-
-
-def find_usb_audio_device() -> str | None:
-    output = run_quiet_command(["aplay", "-l"])
-    for line in output.splitlines():
-        line = line.strip()
-        if not line.startswith("card ") or "device 0:" not in line:
-            continue
-        lower = line.lower()
-        if "usb" not in lower and "pnp sound" not in lower:
-            continue
-        try:
-            card = line.removeprefix("card ").split(":", 1)[0].strip().split()[0]
-        except IndexError:
-            continue
-        return f"plughw:{card},0"
-    return None
-
-
-def resolve_speaker_command(command: str, audio_device: str) -> list[str]:
-    parts = shlex.split(command)
-    if not parts:
-        raise RuntimeError("speaker command is empty")
-    if shutil.which(parts[0]) is None:
-        raise RuntimeError(f"speaker command not found: {parts[0]}")
-    if command_has_audio_device(parts):
-        return parts
-    if audio_device == "default":
-        return parts
-
-    device = find_usb_audio_device() if audio_device == "auto" else audio_device
-    if device is None:
-        raise RuntimeError(f"no USB audio playback device found; ALSA devices: {run_quiet_command(['aplay', '-l'])}")
-
-    return [parts[0], "-D", device, *parts[1:]]
 
 
 async def run_with_timeout(name: str, action: Callable[[], Awaitable[None]], timeout: float) -> None:
@@ -433,7 +344,9 @@ async def connect_watch_ble(
     on_connected: Callable[[], Awaitable[None]],
     on_disconnected: Callable[[], Awaitable[None]],
 ) -> tuple[BleTransport, asyncio.Task, Callable[[], None]]:
-    ensure_bluetooth_ready(auto_setup)
+    if not ensure_bluetooth_ready(auto_setup):
+        adapter = run_quiet_command(["bluetoothctl", "show"])
+        raise RuntimeError(f"Bluetooth is not powered; Bluetooth adapter status: {adapter}")
     ble = BleTransport(
         on_packet=on_packet,
         on_connected=on_connected,
@@ -581,8 +494,13 @@ async def run_all_simultaneous(args: argparse.Namespace) -> None:
 
 
 async def test_preflight(args: argparse.Namespace) -> None:
-    ensure_bluetooth_ready(args.auto_setup)
-    print(f"speaker: configured ALSA device: {args.audio_device}")
+    setup_preflight(
+        enable_ble=True,
+        auto_setup=args.auto_setup,
+        audio_device=args.audio_device,
+        speaker_volume=None,
+        check_spi=True,
+    )
     print("speaker: ALSA playback devices:")
     print(run_quiet_command(["aplay", "-l"]))
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from app import MasterApp
 from db import Database
+from hardware_setup import DEFAULT_AUDIO_DEVICE, DEFAULT_SPEAKER_VOLUME_PERCENT, setup_preflight
 
 #We grab file path location later, so we need a default
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "sleep_core.db"
@@ -24,6 +25,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cli-test-ble", action="store_true", help="Enable BLE in CLI test mode and wait for watch connection")
     parser.add_argument("--debug", action="store_true", help="Enable app debug logs (packets/state), without noisy BLE backend logs")
     parser.add_argument("--bleak-debug", action="store_true", help="Enable verbose Bleak/backend debug logs")
+    parser.add_argument("--preflight", action="store_true", help="Run startup hardware prerequisite checks, then exit")
+    parser.add_argument("--no-auto-setup", action="store_true", help="Do not try to power on Bluetooth automatically")
+    parser.add_argument("--audio-device", default=DEFAULT_AUDIO_DEVICE, help="ALSA speaker device, e.g. auto, plughw:0,0, plughw:1,0, default")
+    parser.add_argument("--speaker-volume", type=int, default=DEFAULT_SPEAKER_VOLUME_PERCENT, help="Safe startup speaker volume percent")
+    parser.add_argument("--no-speaker-volume", action="store_true", help="Do not change mixer volume at startup")
+    parser.add_argument("--no-spi-check", action="store_true", help="Skip /dev/spidev0.0 LED prerequisite check")
     return parser.parse_args()
 
 
@@ -48,10 +55,22 @@ async def async_main(args: argparse.Namespace) -> None:
     db_path = Path(args.db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
+    log = logging.getLogger("sleep_pi_core")
+    setup_preflight(
+        enable_ble=not args.no_ble,
+        auto_setup=not args.no_auto_setup,
+        audio_device=args.audio_device,
+        speaker_volume=None if args.no_speaker_volume else args.speaker_volume,
+        check_spi=not args.no_spi_check,
+        log=log,
+    )
+    if args.preflight:
+        return
+
     #Database is within the db file, MasterApp is within the ble_transport file
     #More detail within those files
     db = Database(db_path=db_path)
-    app = MasterApp(db=db, log=logging.getLogger("sleep_pi_core"))
+    app = MasterApp(db=db, log=log)
 
     #event loop is how the program is async in the first place
     #This returns and gets an active loop for later

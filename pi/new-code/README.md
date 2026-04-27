@@ -55,10 +55,31 @@ pip install -r requirements.txt
 python main.py --debug
 ```
 
+On startup, the main app now runs the same prerequisite setup used by the hardware test path:
+
+- tries to unblock/start/power Bluetooth unless `--no-auto-setup` is used
+- auto-detects the USB/PnP DAC with `--audio-device auto`
+- sets a safe speaker mixer volume, default `--speaker-volume 20`
+- checks that `/dev/spidev0.0` exists for SPI LEDs
+
+To check these prerequisites without starting the app:
+
+```bash
+python main.py --preflight --debug
+```
+
 Debug flags:
 
 - `--debug`: app-level debug logs (received/sent packets, packet parsing, stage transitions).
 - `--bleak-debug`: full verbose Bleak/backend logs (very noisy, use only when needed).
+
+Setup flags:
+
+- `--audio-device`: ALSA output, e.g. `auto`, `plughw:0,0`, `plughw:1,0`, or `default`.
+- `--speaker-volume`: startup mixer volume percent, default `20`.
+- `--no-speaker-volume`: leave mixer volume unchanged.
+- `--no-auto-setup`: report Bluetooth state without trying to power it on.
+- `--no-spi-check`: skip the SPI LED device check.
 
 Example with full backend BLE debug:
 
