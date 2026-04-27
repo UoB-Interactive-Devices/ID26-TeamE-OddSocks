@@ -542,13 +542,21 @@ async def wait_for_watch_connected(ble: BleTransport, task: asyncio.Task, timeou
     start = asyncio.get_running_loop().time()
     while not ble.connected:
         if task.done():
-            exc = task.exception()
-            detail = f"{exc}" if exc else "BLE worker stopped"
-            raise RuntimeError(detail)
+            raise RuntimeError(ble_task_status(task))
         if asyncio.get_running_loop().time() - start > timeout:
             raise RuntimeError("timed out waiting for watch BLE reconnect")
         await asyncio.sleep(0.2)
     print("watch buzz: reconnected")
+
+
+def ble_task_status(task: asyncio.Task) -> str:
+    if task.cancelled():
+        return "BLE worker cancelled"
+    try:
+        exc = task.exception()
+    except asyncio.CancelledError:
+        return "BLE worker cancelled"
+    return f"{exc}" if exc else "BLE worker stopped"
 
 
 async def connect_watch_ble(
@@ -573,10 +581,8 @@ async def connect_watch_ble(
     start = asyncio.get_running_loop().time()
     while not ble.connected:
         if task.done():
-            exc = task.exception()
             adapter = run_quiet_command(["bluetoothctl", "show"])
-            detail = f"{exc}" if exc else "BLE worker stopped before connecting"
-            raise RuntimeError(f"{detail}; Bluetooth adapter status: {adapter}")
+            raise RuntimeError(f"{ble_task_status(task)} before connecting; Bluetooth adapter status: {adapter}")
         if asyncio.get_running_loop().time() - start > timeout:
             adapter = run_quiet_command(["bluetoothctl", "show"])
             raise RuntimeError(f"timed out waiting for watch BLE connection; Bluetooth adapter status: {adapter}")
@@ -596,6 +602,46 @@ async def stop_watch_ble(ble: BleTransport, task: asyncio.Task, cleanup: Callabl
         pass
     except Exception as exc:
         print(f"watch buzz: BLE shutdown ignored backend error: {exc}")
+
+
+async def ensure_watch_session(
+    ble: BleTransport,
+    task: asyncio.Task,
+    cleanup: Callable[[], None],
+    args: argparse.Namespace,
+    log: logging.Logger,
+    on_packet: Callable[[dict[str, Any]], Awaitable[None]],
+    on_connected: Callable[[], Awaitable[None]],
+    on_disconnected: Callable[[], Awaitable[None]],
+) -> tuple[BleTransport, asyncio.Task, Callable[[], None]]:
+    if task.done():
+        print(f"watch buzz: BLE worker stopped ({ble_task_status(task)}); reconnecting")
+        await stop_watch_ble(ble, task, cleanup)
+        return await connect_watch_ble(
+            args.ble_timeout,
+            args.auto_setup,
+            log,
+            on_packet,
+            on_connected,
+            on_disconnected,
+        )
+
+    try:
+        await wait_for_watch_connected(ble, task, args.ble_timeout)
+        return ble, task, cleanup
+    except RuntimeError as exc:
+        if not task.done():
+            raise
+        print(f"watch buzz: reconnecting after BLE wait failed: {exc}")
+        await stop_watch_ble(ble, task, cleanup)
+        return await connect_watch_ble(
+            args.ble_timeout,
+            args.auto_setup,
+            log,
+            on_packet,
+            on_connected,
+            on_disconnected,
+        )
 
 
 async def run_all_simultaneous(args: argparse.Namespace) -> None:
@@ -624,7 +670,16 @@ async def run_all_simultaneous(args: argparse.Namespace) -> None:
     try:
         for cycle in range(args.cycles):
             print(f"\n== simultaneous cycle {cycle + 1}/{args.cycles} ==")
-            await wait_for_watch_connected(ble, task, args.ble_timeout)
+            ble, task, cleanup = await ensure_watch_session(
+                ble,
+                task,
+                cleanup,
+                args,
+                log,
+                on_packet,
+                on_connected,
+                on_disconnected,
+            )
             actions: dict[str, Awaitable[None]] = {
                 "nebuliser_1": test_nebuliser(
                     "nebuliser_1",
