@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 import time
+from pathlib import Path
 from typing import Any
+
+import pygame
 
 from ble_transport import BleTransport
 from db import Database
@@ -26,6 +30,15 @@ DEMO_SCHEDULE = [
     {"stage": "awake", "dwell_sec": 5},
 ]
 DEMO_STIMULUS_TIMEOUT_S = 60
+
+BASE_DIR = Path(__file__).resolve().parent
+DEMO_AUDIO = {
+    "awake": str(BASE_DIR / "awake_stage.mp3"),
+    "light_sleep": str(BASE_DIR / "light_stage.mp3"),
+    "deep_sleep": str(BASE_DIR / "deep_stage.mp3"),
+    "rem": str(BASE_DIR / "rem_stage.mp3"),
+}
+THANK_YOU_AUDIO = str(BASE_DIR / "thank_you.mp3")
 
 # Packet normalisation, kept fairly simple for scope reasons
 _STAGE_ALIASES = {
@@ -470,11 +483,25 @@ class MasterApp:
 
     async def _run_demo_script(self, schedule: list[dict], cycles: int) -> None:
         self.log.info("demo script start schedule=%s cycles=%s", schedule, cycles)
+        
+        if not pygame.mixer.get_init():
+            pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
+            pygame.mixer.init()
+            
         try:
             for _ in range(max(1, cycles)):
                 for step in schedule:
                     stage = step.get("stage", "unknown")
                     dwell_sec = float(step.get("dwell_sec", 0))
+                    
+                    # Play stage announcement if present, skipping the short final awake stage
+                    if stage in DEMO_AUDIO and not (stage == "awake" and dwell_sec <= 5):
+                        audio_path = DEMO_AUDIO[stage]
+                        if os.path.exists(audio_path):
+                            sound = pygame.mixer.Sound(audio_path)
+                            channel = pygame.mixer.find_channel()
+                            if channel:
+                                channel.play(sound)
                     
                     self.current_stage = stage
                     await run_stage(
@@ -487,6 +514,13 @@ class MasterApp:
                     )
                     if dwell_sec > 0:
                         await asyncio.sleep(dwell_sec)
+            
+            # Play thank you at the end of the demo
+            if os.path.exists(THANK_YOU_AUDIO):
+                sound = pygame.mixer.Sound(THANK_YOU_AUDIO)
+                channel = pygame.mixer.find_channel()
+                if channel:
+                    channel.play(sound)
             
             # Stop the session after all cycles complete
             await self.stop_session(reason="demo_complete")
