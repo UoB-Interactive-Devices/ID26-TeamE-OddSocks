@@ -7,7 +7,7 @@ from __future__ import annotations
 
 
 def _awake_haptic_payload(duration_ms: int = 80) -> dict:
-    """Build a short haptic command understood by dreamstream.cmd.boot.js."""
+    """Build a short haptic command understood by the installed watch bridge."""
     return {
         "cmd": "haptic",
         "event": "awake_detected",

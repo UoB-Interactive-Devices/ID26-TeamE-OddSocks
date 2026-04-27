@@ -1,19 +1,36 @@
 from __future__ import annotations
-import board
-import neopixel
 import asyncio
 
+try:
+    import board
+    import neopixel_spi
+except Exception as exc:  # board can fail during import on non-Pi machines.
+    board = None
+    neopixel_spi = None
+    HARDWARE_IMPORT_ERROR = exc
+else:
+    HARDWARE_IMPORT_ERROR = None
+
 delayAfterRem = 3 * 60 #3mins
-NoLEDs = 10
+NoLEDs = 8
 remCycleNo = 3
+
+def make_pixels():
+    if board is None or neopixel_spi is None:
+        return None
+    return neopixel_spi.NeoPixel_SPI(board.SPI(), NoLEDs, brightness=0.01)
 
 async def run(context: dict) -> tuple[str, str, bool]:
     #await asyncio.sleep(delayAfterRem)
     #Using await means the other stage files can run during the gaps
+    log = context["log"]
+    pixels = make_pixels()
+    if pixels is None:
+        log.info("rem/light skipped; LED hardware unavailable: %s", HARDWARE_IMPORT_ERROR)
+        return "light_skipped", "LED hardware unavailable on this machine", False
 
     async def earlyRem():
         print("executing earlyRem")
-        pixels = neopixel.NeoPixel(board.D18, NoLEDs, brightness=0.01)
 
         for cycle in range(5):
             print(cycle)
@@ -32,7 +49,6 @@ async def run(context: dict) -> tuple[str, str, bool]:
 
     async def midNlateRem():
         print("executing midRem")
-        pixels = neopixel.NeoPixel(board.D18, NoLEDs, brightness=0.01)
 
         for cycle in range(5):
                 for b in range(0, 100):

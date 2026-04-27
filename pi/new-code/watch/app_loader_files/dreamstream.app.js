@@ -5,8 +5,16 @@
   var Storage = require("Storage");
   var locale = require("locale");
   var CMD_STORE = "dreamstream.cmd.json";
+  var DEMO_CFG_STORE = "dreamstream.demo.json";
   var BTN_TOP = 126;
   var BTN_BOTTOM = 172;
+  var CTRL_TOP = 96;
+  var CTRL_BOTTOM = 122;
+  var STAGE_TOP = 64;
+  var STAGE_BOTTOM = 90;
+  var STAGES = ["awake", "light_sleep", "deep_sleep", "rem"];
+  var stageIndex = 0;
+  var lastStageSent = "-";
 
   function statusLabel(v) {
     return ["unknown", "not_worn", "awake", "light", "deep", "rem"][v | 0] || "?";
@@ -28,18 +36,25 @@
     return locale.time(new Date(ms), 1);
   }
 
-  function sendControl(cmd) {
-    var pkt = {
-      cmd: cmd,
-      src: "dreamstream",
-      ts: (Date.now() / 1000) | 0
-    };
+  function sendControl(payload) {
+    var pkt = payload || {};
+    if (!pkt.cmd) return false;
+    pkt.src = "dreamstream";
+    pkt.ts = (Date.now() / 1000) | 0;
     try {
       Bluetooth.println(JSON.stringify(pkt));
     } catch (e) {
       return false;
     }
     return true;
+  }
+
+  function sendSimple(cmd) {
+    return sendControl({
+      cmd: cmd,
+      src: "dreamstream",
+      ts: (Date.now() / 1000) | 0
+    });
   }
 
   function getRuntime() {
@@ -67,7 +82,7 @@
       Bangle.buzz(120);
       return;
     }
-    sendControl("start");
+    sendSimple("start");
     if (!rt.monitoring) rt.startMonitoring();
     Bangle.buzz(50);
     draw();
@@ -79,7 +94,7 @@
       Bangle.buzz(120);
       return;
     }
-    sendControl("stop");
+    sendSimple("stop");
     if (rt.monitoring) rt.stopMonitoring();
     Bangle.buzz(50);
     draw();
@@ -102,6 +117,19 @@
     g.drawString(active ? "STOP TRACKING" : "START TRACKING", 88, (BTN_TOP + BTN_BOTTOM) >> 1);
   }
 
+  function drawDemoControls() {
+    var selected = STAGES[stageIndex] || "awake";
+    g.setColor("#3f51b5");
+    g.fillRect(8, CTRL_TOP, 167, CTRL_BOTTOM);
+    g.setColor("#ffffff").setFont("6x8", 2).setFontAlign(0, 0);
+    g.drawString("RUN DEMO", 88, (CTRL_TOP + CTRL_BOTTOM) >> 1);
+
+    g.setColor("#6d4c41");
+    g.fillRect(8, STAGE_TOP, 167, STAGE_BOTTOM);
+    g.setColor("#ffffff").setFont("6x8", 1).setFontAlign(0, 0);
+    g.drawString("STAGE " + selected + " (tap)", 88, (STAGE_TOP + STAGE_BOTTOM) >> 1);
+  }
+
   function draw() {
     var rt = getRuntime();
     var f = rt && rt.lastFeatures ? rt.lastFeatures : {};
@@ -121,7 +149,7 @@
       return;
     }
 
-    var y = 66;
+    var y = 124;
     g.drawString("conn " + (!!rt.connected) + "  monitor " + (rt.monitoring ? "ON" : "off"), 4, y); y += 10;
     g.drawString("stage " + statusLabel(rt.status) + " (" + stageChar(rt.currentStage) + ")", 4, y); y += 10;
     g.drawString("seq " + (rt.sequence | 0) + "  consec " + (rt.consecutive | 0), 4, y); y += 10;
@@ -136,6 +164,8 @@
       g.drawString("pi cmd: none yet", 4, y);
     }
 
+    g.drawString("last stage cmd: " + lastStageSent, 4, 114);
+    drawDemoControls();
     drawButton(!!rt.monitoring);
   }
 
@@ -157,6 +187,23 @@
   }
 
   function onTouch(_btn, xy) {
+    if (xy && xy.y >= STAGE_TOP && xy.y <= STAGE_BOTTOM) {
+      stageIndex = (stageIndex + 1) % STAGES.length;
+      draw();
+      return;
+    }
+    if (xy && xy.y >= CTRL_TOP && xy.y <= CTRL_BOTTOM) {
+      var config = Storage.readJSON(DEMO_CFG_STORE, true) || {};
+      sendControl({
+        cmd: "demo_run",
+        stages: config.stages || STAGES,
+        dwell_sec: config.dwell_sec || 0.35,
+        cycles: config.cycles || 1,
+        auto_start: true
+      });
+      Bangle.buzz(60);
+      return;
+    }
     if (xy && xy.y >= BTN_TOP && xy.y <= BTN_BOTTOM) {
       toggleTracking();
       return;
@@ -174,7 +221,11 @@
     back: load,
     touch: onTouch,
     btn: function () {
-      toggleTracking();
+      var selected = STAGES[stageIndex] || "awake";
+      sendControl({ cmd: "stage", stage: selected, demo_fast: true });
+      lastStageSent = selected;
+      Bangle.buzz(40);
+      draw();
     },
     remove: function () {
       stopRefresh();

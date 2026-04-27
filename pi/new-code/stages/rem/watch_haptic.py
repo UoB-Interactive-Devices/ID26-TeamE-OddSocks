@@ -9,9 +9,11 @@ remCycleNo = 2
 delayAfterRem = 3 * 60 #3mins 
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    await asyncio.sleep(delayAfterRem)
     send_watch_json = context["send_watch_json"]
     log = context["log"]
+    demo_fast = bool(context.get("demo_fast"))
+    if not demo_fast:
+        await asyncio.sleep(delayAfterRem)
 
     async def buzz(intensity, duration):
         #start buzz at intensity
@@ -27,17 +29,17 @@ async def run(context: dict) -> tuple[str, str, bool]:
         return sent
 
     async def burst():
-        burst_duration = random.uniform(1.0, 2.0)
+        burst_duration = random.uniform(0.5, 0.8) if demo_fast else random.uniform(1.0, 2.0)
         elapsed = 0
-        intensity = 20 
+        intensity = 20
         success = True
 
         while elapsed < burst_duration:
             intensity = min(intensity + random.randint(8, 18), 80)
 
-            on_time = random.choice([0.2, 0.3])
+            on_time = random.choice([0.08, 0.12]) if demo_fast else random.choice([0.2, 0.3])
 
-            gap_time = random.uniform(0.2, 0.3)
+            gap_time = random.uniform(0.05, 0.08) if demo_fast else random.uniform(0.2, 0.3)
 
             success = await buzz(intensity, on_time) and success
             await asyncio.sleep(gap_time)
@@ -47,6 +49,9 @@ async def run(context: dict) -> tuple[str, str, bool]:
         return success
 
     async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
+        if demo_fast:
+            bursts = 1
+            gap = 0.1
         success = True
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
@@ -71,4 +76,5 @@ async def run(context: dict) -> tuple[str, str, bool]:
     if not success:
         return "haptic-buzz skipped", "watch not connected for one or more buzzes", False
 
-    return "haptic-buzz started", "NremCycle buzz bursts with minute gaps", True
+    details = "demo fast buzz cycle" if demo_fast else "NremCycle buzz bursts with minute gaps"
+    return "haptic-buzz started", details, True
