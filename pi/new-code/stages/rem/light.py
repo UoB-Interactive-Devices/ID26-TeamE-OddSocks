@@ -18,7 +18,7 @@ remCycleNo = 3
 def make_pixels():
     if board is None or neopixel is None:
         return None
-    return neopixel.NeoPixel(board.D18, NoLEDs, brightness=0.01)
+    return neopixel.NeoPixel(board.D21, NoLEDs, brightness=0.01)
 
 async def run(context: dict) -> tuple[str, str, bool]:
     #commented out for testing

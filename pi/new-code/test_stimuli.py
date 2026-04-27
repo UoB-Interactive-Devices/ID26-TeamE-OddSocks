@@ -28,7 +28,7 @@ NEBULISERS = {
 }
 HAPTIC_MOTOR_PIN = 23
 HAPTIC_PWM_HZ = 100
-LED_GPIO_PIN = 18
+LED_GPIO_PIN = 21
 LED_COUNT = 8
 LED_BRIGHTNESS = 0.15
 LED_WORKER_TIMEOUT_S = 10.0
@@ -384,7 +384,7 @@ async def test_leds_direct(duration: float) -> None:
     for attempt in range(2):
         try:
             print("leds worker: initialising NeoPixel", flush=True)
-            pixels = neopixel.NeoPixel(board.D18, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
+            pixels = neopixel.NeoPixel(board.D21, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
             break
         except RuntimeError as exc:
             if "GPIO busy" not in str(exc) or attempt:
@@ -419,7 +419,7 @@ async def test_leds(duration: float, force: bool) -> None:
         await test_leds_direct(duration)
         return
 
-    print(f"leds: D18, {LED_COUNT} pixels")
+    print(f"leds: D21, {LED_COUNT} pixels")
     issues = led_safety_issues()
     if issues and not force:
         issue_text = "\n".join(f"- {issue}" for issue in issues)
