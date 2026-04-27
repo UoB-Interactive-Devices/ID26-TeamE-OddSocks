@@ -18,7 +18,14 @@ DISCONNECT_TIMEOUT_S = 15 * 60
 VALID_STAGES = ["unknown", "not_worn", "awake", "light_sleep", "deep_sleep", "rem"]
 VALID_STIMULI = ["sound", "smell", "light", "pi_motor", "watch_haptic"]
 DEMO_STAGE_SEQUENCE = ["awake", "light_sleep", "deep_sleep", "rem"]
-DEMO_STIMULUS_TIMEOUT_S = 15
+DEMO_SCHEDULE = [
+    {"stage": "awake", "dwell_sec": 20},
+    {"stage": "light_sleep", "dwell_sec": 15},
+    {"stage": "deep_sleep", "dwell_sec": 25},
+    {"stage": "rem", "dwell_sec": 45},
+    {"stage": "awake", "dwell_sec": 5},
+]
+DEMO_STIMULUS_TIMEOUT_S = 60
 
 # Packet normalisation, kept fairly simple for scope reasons
 _STAGE_ALIASES = {
@@ -125,12 +132,24 @@ def normalise_packet(packet: dict[str, Any]) -> dict[str, Any] | None:
     if cmd == "stop":
         return {"kind": "stop"}
     if cmd in {"demo_run", "demo_start"}:
-        dwell_sec = _as_float(packet.get("dwell_sec"))
         cycles = _as_int(packet.get("cycles"))
+        
+        # If the watch sends the basic demo_run with the default 0.35s dwell time,
+        # or if stages aren't explicitly passed, we use the official DEMO_SCHEDULE.
+        # Otherwise we fallback to what was passed (for testing).
+        passed_dwell = _as_float(packet.get("dwell_sec"))
+        schedule = DEMO_SCHEDULE
+        
+        if "schedule" in packet and isinstance(packet["schedule"], list):
+            schedule = packet["schedule"]
+        elif passed_dwell is not None and passed_dwell != 0.35:
+            # For backwards compatibility with testing commands that specify a non-default dwell
+            stages = _normalise_stages(packet.get("stages"))
+            schedule = [{"stage": s, "dwell_sec": passed_dwell} for s in stages]
+            
         return {
             "kind": "demo_run",
-            "stages": _normalise_stages(packet.get("stages")),
-            "dwell_sec": dwell_sec if dwell_sec is not None else 0.35,
+            "schedule": schedule,
             "cycles": cycles if cycles is not None else 1,
             "auto_start": packet.get("auto_start", True) is not False,
         }
@@ -370,8 +389,7 @@ class MasterApp:
 
         if kind == "demo_run":
             await self.start_demo_script(
-                stages=canonical.get("stages", DEMO_STAGE_SEQUENCE),
-                dwell_sec=canonical.get("dwell_sec", 0.35),
+                schedule=canonical.get("schedule", DEMO_SCHEDULE),
                 cycles=canonical.get("cycles", 1),
                 auto_start=canonical.get("auto_start", True),
             )
@@ -421,8 +439,7 @@ class MasterApp:
 
     async def start_demo_script(
         self,
-        stages: list[str],
-        dwell_sec: float,
+        schedule: list[dict],
         cycles: int,
         auto_start: bool,
     ) -> None:
@@ -436,7 +453,7 @@ class MasterApp:
             return
 
         self.demo_task = asyncio.create_task(
-            self._run_demo_script(stages=stages, dwell_sec=dwell_sec, cycles=cycles),
+            self._run_demo_script(schedule=schedule, cycles=cycles),
             name="demo-script",
         )
 
@@ -451,11 +468,14 @@ class MasterApp:
         self.demo_task = None
         self.log.info("demo script stopped")
 
-    async def _run_demo_script(self, stages: list[str], dwell_sec: float, cycles: int) -> None:
-        self.log.info("demo script start stages=%s dwell=%.2fs cycles=%s", stages, dwell_sec, cycles)
+    async def _run_demo_script(self, schedule: list[dict], cycles: int) -> None:
+        self.log.info("demo script start schedule=%s cycles=%s", schedule, cycles)
         try:
             for _ in range(max(1, cycles)):
-                for stage in stages:
+                for step in schedule:
+                    stage = step.get("stage", "unknown")
+                    dwell_sec = float(step.get("dwell_sec", 0))
+                    
                     self.current_stage = stage
                     await run_stage(
                         stage=stage,
@@ -467,6 +487,9 @@ class MasterApp:
                     )
                     if dwell_sec > 0:
                         await asyncio.sleep(dwell_sec)
+            
+            # Stop the session after all cycles complete
+            await self.stop_session(reason="demo_complete")
         except asyncio.CancelledError:
             raise
         finally:
