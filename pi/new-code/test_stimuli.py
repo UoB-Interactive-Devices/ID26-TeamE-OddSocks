@@ -28,12 +28,8 @@ NEBULISERS = {
 }
 HAPTIC_MOTOR_PIN = 23
 HAPTIC_PWM_HZ = 100
-LED_GPIO_PIN = 21
 LED_COUNT = 8
 LED_BRIGHTNESS = 0.15
-LED_WORKER_TIMEOUT_S = 10.0
-LED_WORKER_ENV = "ODDSOCKS_LED_WORKER"
-PI_CONFIG_PATHS = ("/boot/firmware/config.txt", "/boot/config.txt")
 SPEAKER_COMMAND = "speaker-test -t sine -f 440 -l 1"
 SPEAKER_TIMEOUT_S = 8.0
 DEFAULT_AUDIO_DEVICE = "auto"
@@ -57,10 +53,10 @@ except ImportError:
 
 try:
     import board
-    import neopixel
+    import neopixel_spi
 except Exception:
     board = None
-    neopixel = None
+    neopixel_spi = None
 
 
 class GpioOutput:
@@ -152,69 +148,6 @@ def force_pin_low(pin: int) -> None:
         )
 
 
-def release_gpio_pin(pin: int) -> None:
-    force_pin_low(pin)
-
-    if lgpio is not None:
-        handle = None
-        try:
-            handle = lgpio.gpiochip_open(GPIO_CHIP)
-            lgpio.gpio_claim_output(handle, pin)
-            lgpio.gpio_write(handle, pin, 0)
-            if hasattr(lgpio, "gpio_free"):
-                lgpio.gpio_free(handle, pin)
-        except Exception:
-            pass
-        finally:
-            if handle is not None:
-                with contextlib.suppress(Exception):
-                    lgpio.gpiochip_close(handle)
-
-    if GPIO is not None:
-        with contextlib.suppress(Exception):
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-            GPIO.setup(pin, GPIO.OUT)
-            GPIO.output(pin, GPIO.LOW)
-            GPIO.cleanup(pin)
-
-
-def gpio_line_info(pin: int) -> str:
-    gpioinfo = shutil.which("gpioinfo")
-    if gpioinfo is None:
-        return "gpioinfo not installed"
-    output = run_quiet_command([gpioinfo, f"gpiochip{GPIO_CHIP}"])
-    for line in output.splitlines():
-        if f"line {pin:3d}:" in line:
-            return line.strip()
-    return output
-
-
-def config_enables_onboard_audio() -> bool:
-    for path in PI_CONFIG_PATHS:
-        try:
-            with open(path) as file:
-                for line in file:
-                    stripped = line.strip()
-                    if stripped and not stripped.startswith("#") and stripped == "dtparam=audio=on":
-                        return True
-        except OSError:
-            continue
-    return False
-
-
-def led_safety_issues() -> list[str]:
-    issues = []
-    line = gpio_line_info(LED_GPIO_PIN)
-    if "consumer=" in line and 'consumer="unused"' not in line:
-        issues.append(f"GPIO{LED_GPIO_PIN} is already claimed: {line}")
-    if config_enables_onboard_audio():
-        issues.append(
-            f"Pi onboard audio appears enabled via dtparam=audio=on; GPIO{LED_GPIO_PIN} NeoPixels can conflict with audio peripherals"
-        )
-    return issues
-
-
 def run_quiet_command(command: list[str], timeout: float = 2.0) -> str:
     try:
         result = subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
@@ -222,14 +155,6 @@ def run_quiet_command(command: list[str], timeout: float = 2.0) -> str:
         return str(exc)
     output = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
     return output or f"exit code {result.returncode}"
-
-
-def read_quiet_file(path: str) -> str:
-    try:
-        with open(path) as file:
-            return file.read().strip() or "(empty)"
-    except OSError as exc:
-        return str(exc)
 
 
 def run_setup_command(command: tuple[str, ...], timeout: float = 5.0) -> tuple[bool, str]:
@@ -374,32 +299,17 @@ async def test_haptic_motor(duration: float, intensity: int) -> None:
     print("haptic motor: off")
 
 
-async def test_leds_direct(duration: float) -> None:
-    if board is None or neopixel is None:
-        raise RuntimeError("board/neopixel unavailable; run this on the Pi")
+async def test_leds(duration: float) -> None:
+    if board is None or neopixel_spi is None:
+        raise RuntimeError("board/neopixel_spi unavailable; install adafruit-circuitpython-neopixel-spi on the Pi")
 
-    board_pin = getattr(board, f"D{LED_GPIO_PIN}", None)
-    if board_pin is None:
-        raise RuntimeError(f"board.D{LED_GPIO_PIN} is unavailable on this Pi")
-
-    pixels = None
-    for attempt in range(2):
-        try:
-            print("leds worker: initialising NeoPixel", flush=True)
-            pixels = neopixel.NeoPixel(board_pin, LED_COUNT, brightness=LED_BRIGHTNESS, auto_write=False)
-            break
-        except RuntimeError as exc:
-            if "GPIO busy" not in str(exc) or attempt:
-                raise RuntimeError(
-                    f"GPIO{LED_GPIO_PIN} is busy. Stop any other script/service using LEDs, then retry leds by itself."
-                ) from exc
-            print(f"leds: GPIO{LED_GPIO_PIN} busy; clearing pin and retrying once")
-            release_gpio_pin(LED_GPIO_PIN)
-            await asyncio.sleep(0.2)
-
-    if pixels is None:
-        raise RuntimeError("failed to initialise NeoPixel LEDs")
-
+    print(f"leds: SPI MOSI, {LED_COUNT} pixels")
+    pixels = neopixel_spi.NeoPixel_SPI(
+        board.SPI(),
+        LED_COUNT,
+        brightness=LED_BRIGHTNESS,
+        auto_write=False,
+    )
     cleanup = register_cleanup(lambda: pixels.fill((0, 0, 0)) or pixels.show())
     try:
         for color in ((255, 0, 0), (0, 255, 0), (0, 0, 255)):
@@ -413,51 +323,6 @@ async def test_leds_direct(duration: float) -> None:
         if hasattr(pixels, "deinit"):
             pixels.deinit()
     print("leds: off")
-
-
-async def test_leds(duration: float, force: bool) -> None:
-    if os.environ.get(LED_WORKER_ENV) == "1":
-        await test_leds_direct(duration)
-        return
-
-    print(f"leds: D{LED_GPIO_PIN}, {LED_COUNT} pixels")
-    issues = led_safety_issues()
-    if issues and not force:
-        issue_text = "\n".join(f"- {issue}" for issue in issues)
-        raise RuntimeError(
-            f"LED test skipped to avoid leaving GPIO{LED_GPIO_PIN} stuck busy:\n"
-            f"{issue_text}\n"
-            "Fix the issue or rerun with --force-leds."
-        )
-
-    env = {**os.environ, LED_WORKER_ENV: "1", "PYTHONUNBUFFERED": "1"}
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable,
-        __file__,
-        "--led-worker",
-        "--duration",
-        str(duration),
-        env=env,
-    )
-
-    try:
-        await asyncio.wait_for(proc.wait(), timeout=LED_WORKER_TIMEOUT_S)
-    except asyncio.TimeoutError as exc:
-        proc.terminate()
-        with contextlib.suppress(Exception):
-            await asyncio.wait_for(proc.wait(), timeout=1.0)
-        if proc.returncode is None:
-            proc.kill()
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(proc.wait(), timeout=1.0)
-        worker_state = run_quiet_command(["ps", "-o", "pid,stat,cmd", "-p", str(proc.pid)])
-        raise RuntimeError(
-            f"LED worker hung inside the NeoPixel backend. Check for stuck python processes and GPIO{LED_GPIO_PIN} "
-            f"peripheral conflicts. Worker status:\n{worker_state}"
-        ) from exc
-
-    if proc.returncode:
-        raise RuntimeError(f"LED worker failed with exit code {proc.returncode}")
 
 
 async def test_speaker(
@@ -695,7 +560,7 @@ async def run_all_simultaneous(args: argparse.Namespace) -> None:
                 "speaker": test_speaker_duration(args.speaker_command, args.audio_device, args.duration),
                 "haptic_motor": test_haptic_motor(args.duration, args.intensity),
                 "watch_buzz": test_watch_buzz_connected(ble, task, args.duration, args.ble_timeout),
-                "leds": test_leds(args.duration, args.force_leds),
+                "leds": test_leds(args.duration),
             }
             results = await asyncio.gather(*actions.values(), return_exceptions=True)
             failed = False
@@ -758,7 +623,7 @@ async def run_selected(args: argparse.Namespace) -> None:
         ),
         "haptic_motor": lambda: test_haptic_motor(args.duration, args.intensity),
         "watch_buzz": lambda: test_watch_buzz(args.ble_timeout, args.auto_setup),
-        "leds": lambda: test_leds(args.duration, args.force_leds),
+        "leds": lambda: test_leds(args.duration),
     }
 
     names = list(tests) if args.stimulus == "all" else [args.stimulus]
@@ -801,8 +666,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cycles", type=int, default=1, help="Simultaneous all-output cycles")
     parser.add_argument("--gap", type=float, default=ALL_CYCLE_GAP_S, help="Seconds between simultaneous cycles")
     parser.add_argument("--step", action="store_true", help="After each sequential test, wait for Enter; r repeats, q quits")
-    parser.add_argument("--force-leds", action="store_true", help="Run NeoPixel test even when safety checks warn")
-    parser.add_argument("--led-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--no-auto-setup",
         action="store_false",
@@ -818,10 +681,7 @@ def main() -> None:
     install_signal_cleanup()
     args = parse_args()
     try:
-        if args.led_worker:
-            asyncio.run(test_leds_direct(args.duration))
-        else:
-            asyncio.run(run_selected(args))
+        asyncio.run(run_selected(args))
     except KeyboardInterrupt:
         print("\ninterrupted; cleanup requested", file=sys.stderr)
     finally:
