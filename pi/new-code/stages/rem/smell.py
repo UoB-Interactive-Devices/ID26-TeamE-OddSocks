@@ -21,7 +21,7 @@ try:
 except ImportError:
     GPIO = None
 
-MIST_PIN = 16
+MIST_PINS = [12, 16]
 
 async def _run_peppermint_cycles(logger):
     def log_msg(msg, level="info"):
@@ -39,8 +39,9 @@ async def _run_peppermint_cycles(logger):
     if lgpio is not None:
         try:
             h = lgpio.gpiochip_open(0)
-            lgpio.gpio_claim_output(h, MIST_PIN)
-            lgpio.gpio_write(h, MIST_PIN, 0)
+            for pin in MIST_PINS:
+                lgpio.gpio_claim_output(h, pin)
+                lgpio.gpio_write(h, pin, 0)
             use_lgpio = True
             sys._smell_handle = h
         except Exception as e:
@@ -50,8 +51,9 @@ async def _run_peppermint_cycles(logger):
         try:
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
-            GPIO.setup(MIST_PIN, GPIO.OUT)
-            GPIO.output(MIST_PIN, GPIO.LOW)
+            for pin in MIST_PINS:
+                GPIO.setup(pin, GPIO.OUT)
+                GPIO.output(pin, GPIO.LOW)
             use_rpi_gpio = True
         except Exception as e:
             log_msg(f"RPi.GPIO setup failed: {e}", "error")
@@ -67,17 +69,21 @@ async def _run_peppermint_cycles(logger):
         while (time.time() - start_time) < duration:
             log_msg("Scent Dispersing. (5s ON)")
             if use_lgpio:
-                lgpio.gpio_write(h, MIST_PIN, 1)
+                for pin in MIST_PINS:
+                    lgpio.gpio_write(h, pin, 1)
             elif use_rpi_gpio:
-                GPIO.output(MIST_PIN, GPIO.HIGH)
+                for pin in MIST_PINS:
+                    GPIO.output(pin, GPIO.HIGH)
             
             await asyncio.sleep(5)
             
             log_msg("Receptor Recovery. (25s OFF)")
             if use_lgpio:
-                lgpio.gpio_write(h, MIST_PIN, 0)
+                for pin in MIST_PINS:
+                    lgpio.gpio_write(h, pin, 0)
             elif use_rpi_gpio:
-                GPIO.output(MIST_PIN, GPIO.LOW)
+                for pin in MIST_PINS:
+                    GPIO.output(pin, GPIO.LOW)
                 
             await asyncio.sleep(25)
             
@@ -90,14 +96,16 @@ async def _run_peppermint_cycles(logger):
     finally:
         if use_lgpio and h is not None:
             try:
-                lgpio.gpio_write(h, MIST_PIN, 0)
+                for pin in MIST_PINS:
+                    lgpio.gpio_write(h, pin, 0)
                 lgpio.gpiochip_close(h)
                 sys._smell_handle = None
             except Exception as e:
                 log_msg(f"lgpio cleanup error: {e}", "error")
         elif use_rpi_gpio:
             try:
-                GPIO.output(MIST_PIN, GPIO.LOW)
+                for pin in MIST_PINS:
+                    GPIO.output(pin, GPIO.LOW)
             except Exception as e:
                 log_msg(f"RPi.GPIO cleanup error: {e}", "error")
 
