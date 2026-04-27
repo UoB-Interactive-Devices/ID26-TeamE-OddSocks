@@ -9,33 +9,35 @@ disruptive noise, but should not introduce a new sharp cue.
 from __future__ import annotations
 
 import asyncio
-import subprocess
+import os
 import sys
+from pathlib import Path
 
-from hardware_setup import resolve_speaker_command
+import pygame
 
-SOUNDSCAPE_COMMAND = "speaker-test -t pink -l 0"
-AUDIO_DEVICE = "auto"
+WAVE_FILE = str(Path(__file__).resolve().parent.parent.parent / "wave_noise.wav")
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
     log = context["log"]
 
-    # Keep the awake background soundscape running through light sleep. If it
-    # is not already running, start it here.
     try:
-        proc = getattr(sys, "_background_sound_proc", None)
-        if proc is None or proc.returncode is not None:
-            command = resolve_speaker_command(SOUNDSCAPE_COMMAND, AUDIO_DEVICE)
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            sys._background_sound_proc = proc
-            log.info("light_sleep/sound background soundscape started")
+        if not pygame.mixer.get_init():
+            pygame.mixer.pre_init(frequency=44100, size=-16, channels=1, buffer=2048)
+            pygame.mixer.init()
+
+        channel = getattr(sys, "_background_sound_channel", None)
+        if channel is None or not channel.get_busy():
+            if os.path.exists(WAVE_FILE):
+                sound = pygame.mixer.Sound(WAVE_FILE)
+                channel = sound.play(loops=-1, fade_ms=2000)
+                sys._background_sound_channel = channel
+                log.info("light_sleep/sound wave soundscape started")
+            else:
+                log.warning("light_sleep/sound wave_noise.wav not found at %s", WAVE_FILE)
+
     except Exception as exc:
         log.warning("light_sleep/sound failed: %s", exc)
         return "sound_error", f"sound failed: {exc}", False
 
-    return "soundscape_running", "Background soundscape running through light sleep", True
+    return "soundscape_running", "Background wave soundscape running through light sleep", True

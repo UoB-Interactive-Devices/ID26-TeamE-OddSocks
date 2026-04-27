@@ -10,38 +10,40 @@ with real speaker playback.
 from __future__ import annotations
 
 import asyncio
-import subprocess
+import os
 import sys
+from pathlib import Path
 
-from hardware_setup import resolve_speaker_command
+import pygame
 
-SOUND_COMMAND = "speaker-test -t sine -f 660 -l 1"
-AUDIO_DEVICE = "auto"
+CHIME_FILE = str(Path(__file__).resolve().parent.parent.parent / "wind_chimes.wav")
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
     log = context["log"]
+    demo_fast = context.get("demo_fast", False)
 
-    # Stop the background masking sound before the REM callback chime so the
-    # cue is distinct.
-    background = getattr(sys, "_background_sound_proc", None)
-    if background is not None and background.returncode is None:
-        background.terminate()
-        try:
-            await asyncio.wait_for(background.wait(), timeout=1.0)
-        except asyncio.TimeoutError:
-            background.kill()
-            await background.wait()
-        sys._background_sound_proc = None
-
-    # Example speaker pattern. Replace this tone with the same callback chime
-    # used before sleep, synced with the REM light/haptic/scent cues.
     try:
-        command = resolve_speaker_command(SOUND_COMMAND, AUDIO_DEVICE)
-        proc = await asyncio.create_subprocess_exec(*command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        await asyncio.wait_for(proc.wait(), timeout=1.2)
-    except Exception as exc:
-        log.warning("rem/sound example failed: %s", exc)
-        return "sound_example_error", f"example sound failed: {exc}", False
+        if not pygame.mixer.get_init():
+            pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
+            pygame.mixer.init()
 
-    return "sound_example", "Played example REM callback tone", True
+        # In REM, play the chime synchronized with the other cues.
+        # Wait 3 minutes normally (synced with light), or very short in demo mode.
+        wait_time = 0.5 if demo_fast else 180.0
+        await asyncio.sleep(wait_time)
+
+        if os.path.exists(CHIME_FILE):
+            chime = pygame.mixer.Sound(CHIME_FILE)
+            chime_channel = pygame.mixer.find_channel()
+            if chime_channel:
+                chime_channel.play(chime)
+                log.info("rem/sound reality cue callback chime played")
+        else:
+            log.warning("rem/sound wind_chimes.wav not found at %s", CHIME_FILE)
+
+    except Exception as exc:
+        log.warning("rem/sound failed: %s", exc)
+        return "sound_error", f"sound failed: {exc}", False
+
+    return "rem_chime_played", "Played callback reality chime for REM", True

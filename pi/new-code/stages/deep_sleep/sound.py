@@ -11,16 +11,14 @@ from __future__ import annotations
 import asyncio
 import sys
 
+import pygame
+
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    proc = getattr(sys, "_background_sound_proc", None)
-    if proc is not None and proc.returncode is None:
-        proc.terminate()
-        try:
-            await asyncio.wait_for(proc.wait(), timeout=1.0)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-        sys._background_sound_proc = None
+    if pygame.mixer.get_init():
+        channel = getattr(sys, "_background_sound_channel", None)
+        if channel is not None and channel.get_busy():
+            channel.fadeout(2000)
+            sys._background_sound_channel = None
 
-    return "none", "No new sound cue in deep sleep", True
+    return "none", "No new sound cue in deep sleep (faded out)", True

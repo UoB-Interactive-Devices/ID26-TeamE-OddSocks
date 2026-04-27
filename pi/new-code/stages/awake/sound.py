@@ -10,44 +10,56 @@ Use the shared audio helper when replacing this example with real playback.
 from __future__ import annotations
 
 import asyncio
-import subprocess
+import os
 import sys
+from pathlib import Path
 
-from hardware_setup import resolve_speaker_command
+import pygame
 
-SOUNDSCAPE_COMMAND = "speaker-test -t pink -l 0"
-REALITY_CHIME_COMMAND = "speaker-test -t sine -f 440 -l 1"
-AUDIO_DEVICE = "auto"
+WAVE_FILE = str(Path(__file__).resolve().parent.parent.parent / "wave_noise.wav")
+CHIME_FILE = str(Path(__file__).resolve().parent.parent.parent / "wind_chimes.wav")
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
     log = context["log"]
+    demo_fast = context.get("demo_fast", False)
 
-    # Example background soundscape. Replace speaker-test pink noise with a
-    # real rainfall/waves file later, keeping the same start-once structure.
     try:
-        proc = getattr(sys, "_background_sound_proc", None)
-        if proc is None or proc.returncode is not None:
-            command = resolve_speaker_command(SOUNDSCAPE_COMMAND, AUDIO_DEVICE)
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            sys._background_sound_proc = proc
-            log.info("awake/sound background soundscape started")
+        if not pygame.mixer.get_init():
+            pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
+            pygame.mixer.init()
 
-        # Example pre-sleep reality cue. Swap this sine tone for the final
-        # chime asset when ready.
-        chime = resolve_speaker_command(REALITY_CHIME_COMMAND, AUDIO_DEVICE)
-        chime_proc = await asyncio.create_subprocess_exec(
-            *chime,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        await asyncio.wait_for(chime_proc.wait(), timeout=1.2)
+        # 1. Background masking wave noise
+        channel = getattr(sys, "_background_sound_channel", None)
+        if channel is None or not channel.get_busy():
+            if os.path.exists(WAVE_FILE):
+                sound = pygame.mixer.Sound(WAVE_FILE)
+                # Play on an available channel, loop infinitely, fade in 2 seconds
+                channel = pygame.mixer.find_channel()
+                if channel:
+                    channel.play(sound, loops=-1, fade_ms=2000)
+                    sys._background_sound_channel = channel
+                    log.info("awake/sound wave soundscape started")
+            else:
+                log.warning("awake/sound wave_noise.wav not found at %s", WAVE_FILE)
+
+        # 2. Reality cue chime
+        # Table: "waits 5 minutes into the sleep attempt, then plays a distinct chime."
+        # In fast demo mode, we just wait a short moment (e.g. 2s) so it fits in the 20s awake block
+        wait_time = 2.0 if demo_fast else 300.0
+        await asyncio.sleep(wait_time)
+
+        if os.path.exists(CHIME_FILE):
+            chime = pygame.mixer.Sound(CHIME_FILE)
+            chime_channel = pygame.mixer.find_channel()
+            if chime_channel:
+                chime_channel.play(chime)
+                log.info("awake/sound wind chimes played")
+        else:
+            log.warning("awake/sound wind_chimes.wav not found at %s", CHIME_FILE)
+
     except Exception as exc:
         log.warning("awake/sound failed: %s", exc)
         return "sound_error", f"sound failed: {exc}", False
 
-    return "soundscape_started", "Background soundscape running; played example pre-sleep chime", True
+    return "soundscape_started", "Background wave running and played reality chime", True
