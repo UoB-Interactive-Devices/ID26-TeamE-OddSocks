@@ -16,6 +16,7 @@ remCycleNo = 2
 async def run(context: dict) -> tuple[str, str, bool]:
     #await asyncio.sleep(delayAfterRem)
     #Using await means the other stage files can run during the gaps
+    demo_fast = bool(context.get("demo_fast"))
     h = lgpio.gpiochip_open(CHIP)
     lgpio.gpio_claim_output(h, PIN)
 
@@ -25,16 +26,16 @@ async def run(context: dict) -> tuple[str, str, bool]:
         lgpio.tx_pwm(h, PIN, 100, 0)
 
     async def burst():
-        burst_duration = random.uniform(1.0, 2.0)
+        burst_duration = random.uniform(0.5, 0.8) if demo_fast else random.uniform(1.0, 2.0)
         elapsed = 0
         intensity = 20 
 
         while elapsed < burst_duration:
             intensity = min(intensity + random.randint(8, 18), 80)
 
-            on_time = random.choice([0.2, 0.3])
+            on_time = random.choice([0.08, 0.12]) if demo_fast else random.choice([0.2, 0.3])
 
-            gap_time = random.uniform(0.2, 0.3)
+            gap_time = random.uniform(0.05, 0.08) if demo_fast else random.uniform(0.2, 0.3)
 
             await buzz(intensity, on_time)
             await asyncio.sleep(gap_time)
@@ -42,6 +43,9 @@ async def run(context: dict) -> tuple[str, str, bool]:
             elapsed += on_time + gap_time
 
     async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
+        if demo_fast:
+            bursts = 1
+            gap = 0.1
         for i in range(bursts):
             print(f"Burst {i + 1} of {bursts}")
             await burst()
@@ -56,4 +60,5 @@ async def run(context: dict) -> tuple[str, str, bool]:
         lgpio.tx_pwm(h, PIN, 100, 0)
         lgpio.gpiochip_close(h)
 
-    return "pi-motor-buzz started", "NremCycle buzz bursts with minute gaps", True
+    details = "demo fast below-pillow haptic burst" if demo_fast else "NremCycle buzz bursts with minute gaps"
+    return "pi-motor-buzz started", details, True

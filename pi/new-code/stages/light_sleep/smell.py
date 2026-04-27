@@ -8,6 +8,18 @@ habituation/nose blindness before the REM peppermint cue.
 
 from __future__ import annotations
 
+import asyncio
+import sys
+
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    return "none", "No smell active for this stage", True
+    task = getattr(sys, "_smell_mist_task", None)
+    if task is not None and not task.done():
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=1.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+    sys._smell_mist_task = None
+    sys._smell_handle = None
+    return "none", "Smell stopped; no scent active for light sleep", True

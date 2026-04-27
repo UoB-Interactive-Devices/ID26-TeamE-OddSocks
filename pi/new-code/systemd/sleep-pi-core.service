@@ -7,8 +7,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/pi/ID26-TeamE-OddSocks/pi/new-code
-ExecStart=/home/pi/ID26-TeamE-OddSocks/pi/new-code/.venv/bin/python /home/pi/ID26-TeamE-OddSocks/pi/new-code/main.py
+User=root
+WorkingDirectory=/home/odd/ID26-TeamE-OddSocks/pi/new-code
+ExecStart=/usr/bin/python3 /home/odd/ID26-TeamE-OddSocks/pi/new-code/main.py --debug
 Restart=always
 RestartSec=5
 

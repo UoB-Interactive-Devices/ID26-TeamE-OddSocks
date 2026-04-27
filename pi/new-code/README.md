@@ -186,14 +186,14 @@ You can also trigger individual stage runs manually with:
 
 The repo already includes a simple systemd unit template at `systemd/sleep-pi-core.service`.
 
-Systemd services run as root by default unless you add a `User=` line, so this is the clean way to have it run with sudo-style privileges on startup.
+The service runs as root so GPIO/SPI access works without manually typing `sudo`.
+Once enabled, it starts whenever the Pi boots or is plugged in. The app keeps
+scanning until the Bangle is in range, then logs `BLE connected`.
 
 On the Pi:
 
 ```bash
-cd /home/pi/ID26-TeamE-OddSocks/pi/new-code
-python3 -m venv .venv
-. .venv/bin/activate
+cd /home/odd/ID26-TeamE-OddSocks/pi/new-code
 pip install -r requirements.txt
 sudo cp systemd/sleep-pi-core.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -208,9 +208,12 @@ sudo systemctl status sleep-pi-core.service
 sudo journalctl -u sleep-pi-core.service -f
 ```
 
-If the repo lives somewhere other than `/home/pi/ID26-TeamE-OddSocks`, update the paths in `systemd/sleep-pi-core.service` before copying it into `/etc/systemd/system/`.
+The `journalctl -f` command is what to use in an RPi Connect shell when you want
+to see the output from the auto-running Python file.
+
+If the repo lives somewhere other than `/home/odd/ID26-TeamE-OddSocks`, update the paths in `systemd/sleep-pi-core.service` before copying it into `/etc/systemd/system/`.
 
 ## Next implementation step
 
-Replace placeholder modules in `stages/` with real stage logic for each stimulus.
-Each file can directly implement the hardware/BLE action for that stage+stimulus.
+Replace scaffold/example modules in `stages/` with final cue logic where needed.
+Each file owns one stage/stimulus combination.

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import sys
 
 from hardware_setup import resolve_speaker_command
 
@@ -20,6 +21,19 @@ AUDIO_DEVICE = "auto"
 
 async def run(context: dict) -> tuple[str, str, bool]:
     log = context["log"]
+
+    # Stop the background masking sound before the REM callback chime so the
+    # cue is distinct.
+    background = getattr(sys, "_background_sound_proc", None)
+    if background is not None and background.returncode is None:
+        background.terminate()
+        try:
+            await asyncio.wait_for(background.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            background.kill()
+            await background.wait()
+        sys._background_sound_proc = None
+
     # Example speaker pattern. Replace this tone with the same callback chime
     # used before sleep, synced with the REM light/haptic/scent cues.
     try:

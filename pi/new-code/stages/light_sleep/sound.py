@@ -10,23 +10,32 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import sys
 
 from hardware_setup import resolve_speaker_command
 
-SOUND_COMMAND = "speaker-test -t sine -f 330 -l 1"
+SOUNDSCAPE_COMMAND = "speaker-test -t pink -l 0"
 AUDIO_DEVICE = "auto"
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
     log = context["log"]
-    # Example speaker pattern. Replace this with continuous low masking audio
-    # if the team chooses to keep sound running through light sleep.
-    try:
-        command = resolve_speaker_command(SOUND_COMMAND, AUDIO_DEVICE)
-        proc = await asyncio.create_subprocess_exec(*command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        await asyncio.wait_for(proc.wait(), timeout=1.2)
-    except Exception as exc:
-        log.warning("light_sleep/sound example failed: %s", exc)
-        return "sound_example_error", f"example sound failed: {exc}", False
 
-    return "sound_example", "Played example quiet masking tone", True
+    # Keep the awake background soundscape running through light sleep. If it
+    # is not already running, start it here.
+    try:
+        proc = getattr(sys, "_background_sound_proc", None)
+        if proc is None or proc.returncode is not None:
+            command = resolve_speaker_command(SOUNDSCAPE_COMMAND, AUDIO_DEVICE)
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            sys._background_sound_proc = proc
+            log.info("light_sleep/sound background soundscape started")
+    except Exception as exc:
+        log.warning("light_sleep/sound failed: %s", exc)
+        return "sound_error", f"sound failed: {exc}", False
+
+    return "soundscape_running", "Background soundscape running through light sleep", True

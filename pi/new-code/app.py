@@ -18,6 +18,7 @@ DISCONNECT_TIMEOUT_S = 15 * 60
 VALID_STAGES = ["unknown", "not_worn", "awake", "light_sleep", "deep_sleep", "rem"]
 VALID_STIMULI = ["sound", "smell", "light", "pi_motor", "watch_haptic"]
 DEMO_STAGE_SEQUENCE = ["awake", "light_sleep", "deep_sleep", "rem"]
+DEMO_STIMULUS_TIMEOUT_S = 15
 
 # Packet normalisation, kept fairly simple for scope reasons
 _STAGE_ALIASES = {
@@ -179,8 +180,16 @@ async def run_single_stimulus(
     }
     module_name = f"stages.{stage}.{stimulus}"
     module = importlib.import_module(module_name)
-    #async await and all that
-    action, details, success = await module.run(context)
+    try:
+        if demo_fast:
+            action, details, success = await asyncio.wait_for(module.run(context), timeout=DEMO_STIMULUS_TIMEOUT_S)
+        else:
+            action, details, success = await module.run(context)
+    except Exception as exc:
+        action = "error"
+        details = f"{stage}/{stimulus} failed: {exc}"
+        success = False
+        log.warning(details)
 
     db.log_stimulus_event(
         session_id=session_id,
@@ -203,7 +212,8 @@ async def run_stage(
     *,
     demo_fast: bool = False,
 ) -> None:
-    #Run all stimuli for a stage at the same time, see above
+    # Run all stimuli for a stage at the same time. Each stimulus logs its own
+    # failure so one broken output does not stop the whole demo stage.
     await asyncio.gather(
         *[
             run_single_stimulus(
@@ -371,7 +381,12 @@ class MasterApp:
             await self.stop_demo_script()
             return
         #For our sleep stages, gives us the transitions and updates the current stage accordingly
-        if kind == "stage" and self.state == "running":
+        if kind == "stage":
+            if self.state != "running" and canonical.get("demo_fast", False):
+                await self.start_session()
+            if self.state != "running":
+                self.log.info("stage command skipped: session not running")
+                return
             self.current_stage = canonical["stage"]
             await run_stage(
                 stage=self.current_stage,
