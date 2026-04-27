@@ -113,6 +113,12 @@ To run all outputs at the same time, use the explicit simultaneous mode. It conn
 sudo python3 test_stimuli.py all --simultaneous --duration 2 --cycles 3 --gap 10
 ```
 
+To step through the normal sequential checks manually, use `--step`. Press Enter for the next test, `r` to repeat the current test, or `q` to quit:
+
+```bash
+sudo python3 test_stimuli.py all --step
+```
+
 For speaker tests, `--audio-device auto` is the default. It picks the USB/PnP sound card from `aplay -l`, which handles the DAC appearing as card 0 after hotplug or card 1 after boot. You can override it when needed:
 
 ```bash

@@ -721,6 +721,27 @@ async def test_preflight(args: argparse.Namespace) -> None:
     print(run_quiet_command(["aplay", "-l"]))
 
 
+async def run_one_test(name: str, action: Callable[[], Awaitable[None]], timeout: float) -> None:
+    print(f"\n== {name} ==")
+    try:
+        await run_with_timeout(name, action, timeout)
+    except Exception as exc:
+        print(f"{name}: FAILED - {exc}")
+    else:
+        print(f"{name}: OK")
+    finally:
+        run_cleanups()
+
+
+async def prompt_next_action(name: str) -> str:
+    while True:
+        response = await asyncio.to_thread(input, f"{name}: Enter=next, r=repeat, q=quit > ")
+        action = response.strip().lower()
+        if action in ("", "r", "q"):
+            return action
+        print("Please press Enter, r, or q.")
+
+
 async def run_selected(args: argparse.Namespace) -> None:
     if args.stimulus == "all" and args.simultaneous:
         await run_all_simultaneous(args)
@@ -740,16 +761,18 @@ async def run_selected(args: argparse.Namespace) -> None:
     }
 
     names = list(tests) if args.stimulus == "all" else [args.stimulus]
-    for name in names:
-        print(f"\n== {name} ==")
-        try:
-            await run_with_timeout(name, tests[name], args.test_timeout)
-        except Exception as exc:
-            print(f"{name}: FAILED - {exc}")
-        else:
-            print(f"{name}: OK")
-        finally:
-            run_cleanups()
+    index = 0
+    while index < len(names):
+        name = names[index]
+        await run_one_test(name, tests[name], args.test_timeout)
+        if args.step:
+            action = await prompt_next_action(name)
+            if action == "q":
+                print("stopping step-through")
+                break
+            if action == "r":
+                continue
+        index += 1
 
 
 def parse_args() -> argparse.Namespace:
@@ -776,6 +799,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--cycles", type=int, default=1, help="Simultaneous all-output cycles")
     parser.add_argument("--gap", type=float, default=ALL_CYCLE_GAP_S, help="Seconds between simultaneous cycles")
+    parser.add_argument("--step", action="store_true", help="After each sequential test, wait for Enter; r repeats, q quits")
     parser.add_argument("--force-leds", action="store_true", help="Run NeoPixel test even when safety checks warn")
     parser.add_argument("--led-worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
