@@ -3,12 +3,12 @@ import board
 import neopixel
 import asyncio
 
-delayAftrRem = 3 * 60 #3mins
+delayAfterRem = 3 * 60 #3mins
 NoLEDs = 10
 remCycleNo = 3
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    #await asyncio.sleep(delayAftrRem)
+    #await asyncio.sleep(delayAfterRem)
     #Using await means the other stage files can run during the gaps
 
     async def earlyRem():
