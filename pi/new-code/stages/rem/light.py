@@ -21,7 +21,7 @@ except Exception as exc:
 else:
     HARDWARE_IMPORT_ERROR = None
 
-LED_COUNT = 8
+LED_COUNT = 9
 BRIGHTNESS = 0.12
 REM_DELAY_S = 3 * 60
 DEMO_DELAY_S = 0.5

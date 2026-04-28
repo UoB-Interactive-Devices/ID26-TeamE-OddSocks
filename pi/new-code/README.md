@@ -166,7 +166,7 @@ speaker-test -D plughw:0,0 -t sine -f 440 -l 1
 
 If the USB DAC is plugged in but `preflight` still says there are no ALSA playback devices, check the diagnostics it prints. `lsusb` seeing the DAC but `aplay -l` not listing it usually means the kernel audio driver is not loaded or the device was not enumerated as an ALSA sound card.
 
-The LED test now uses SPI NeoPixel output. Wire LED data to SPI0 MOSI (`GPIO10`, physical pin 19), enable SPI, and check that `/dev/spidev0.0` exists after reboot. The demo strip is configured as 8 pixels.
+The LED test now uses SPI NeoPixel output. Wire LED data to SPI0 MOSI (`GPIO10`, physical pin 19), enable SPI, and check that `/dev/spidev0.0` exists after reboot. The demo strip is configured as 9 pixels.
 
 ## Demo mode notes
 
