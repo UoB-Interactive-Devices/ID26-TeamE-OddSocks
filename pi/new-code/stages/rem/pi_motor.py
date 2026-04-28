@@ -2,8 +2,7 @@
 
 Intent: use the below-pillow motor as a REM tactile cue after the same
 3-minute offset as the light and sound cues. The pattern is short, irregular,
-and gently ramping so it can become a dream cue without being a long buzz.
-Demo mode shortens the delay, burst count, and gaps.
+and ramping, but kept in a strong range so it is clearly detectable.
 """
 
 from __future__ import annotations
@@ -25,6 +24,8 @@ FULL_BURSTS = 2
 DEMO_BURSTS = 5
 DEMO_BURST_SECONDS = 1.8
 DEMO_GAP_BETWEEN_BURSTS_S = 6
+MIN_MOTOR_INTENSITY_PERCENT = 70
+MAX_MOTOR_INTENSITY_PERCENT = 100
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
@@ -47,10 +48,10 @@ async def run(context: dict) -> tuple[str, str, bool]:
     async def burst() -> None:
         burst_duration = DEMO_BURST_SECONDS if demo_fast else random.uniform(1.0, 2.0)
         elapsed = 0.0
-        intensity = 20
+        intensity = MIN_MOTOR_INTENSITY_PERCENT
 
         while elapsed < burst_duration:
-            intensity = min(intensity + random.randint(8, 18), 80)
+            intensity = min(intensity + random.randint(5, 12), MAX_MOTOR_INTENSITY_PERCENT)
             on_s = random.choice([0.08, 0.12]) if demo_fast else random.choice([0.2, 0.3])
             off_s = random.uniform(0.05, 0.08) if demo_fast else random.uniform(0.2, 0.3)
             await buzz(intensity, on_s)
