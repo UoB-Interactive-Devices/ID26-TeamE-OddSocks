@@ -22,8 +22,9 @@ REM_DELAY_S = 3 * 60
 DEMO_DELAY_S = 0.5
 GAP_BETWEEN_BURSTS_S = 60
 FULL_BURSTS = 2
-DEMO_BURSTS = 3
+DEMO_BURSTS = 5
 DEMO_BURST_SECONDS = 1.8
+DEMO_GAP_BETWEEN_BURSTS_S = 6
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
@@ -57,7 +58,7 @@ async def run(context: dict) -> tuple[str, str, bool]:
             elapsed += on_s + off_s
 
     bursts = DEMO_BURSTS if demo_fast else FULL_BURSTS
-    gap_s = 0.3 if demo_fast else GAP_BETWEEN_BURSTS_S
+    gap_s = DEMO_GAP_BETWEEN_BURSTS_S if demo_fast else GAP_BETWEEN_BURSTS_S
 
     try:
         for index in range(bursts):
