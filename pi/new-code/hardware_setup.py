@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 DEFAULT_AUDIO_DEVICE = "auto"
-DEFAULT_SPEAKER_VOLUME_PERCENT = 40
+DEFAULT_SPEAKER_VOLUME_PERCENT = 70
 SPI_DEVICE = Path("/dev/spidev0.0")
 
 
