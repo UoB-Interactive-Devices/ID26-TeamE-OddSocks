@@ -1,6 +1,6 @@
 """Stage 'rem' + stimulus 'smell'.
 
-Intent: pulse nebuliser_2 as the REM smell cue. Full flow is
+Intent: pulse nebuliser_1 as the REM smell cue. Full flow is
 5s on / 25s off for 15 minutes; demo mode uses short visible pulses.
 """
 
@@ -15,7 +15,7 @@ try:
 except ImportError:
     lgpio = None
 
-SMELL_PINS = (16,)
+SMELL_PINS = (12,)
 FULL_DURATION_S = 15 * 60
 FULL_ON_S = 5
 FULL_OFF_S = 25
@@ -62,10 +62,10 @@ async def _run_pulsed_smell(log, duration_s: float, on_s: float, off_s: float) -
         end_time = asyncio.get_running_loop().time() + duration_s
         while asyncio.get_running_loop().time() < end_time:
             _set_pins(outputs, 1)
-            _log(log, "info", "rem/smell nebuliser_2 on")
+            _log(log, "info", "rem/smell nebuliser_1 on")
             await asyncio.sleep(on_s)
             _set_pins(outputs, 0)
-            _log(log, "info", "rem/smell nebuliser_2 off")
+            _log(log, "info", "rem/smell nebuliser_1 off")
             await asyncio.sleep(off_s)
     except asyncio.CancelledError:
         raise

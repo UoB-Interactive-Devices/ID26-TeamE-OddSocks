@@ -1,6 +1,6 @@
 """Stage 'awake' + stimulus 'smell'.
 
-Intent: run nebuliser_1 as the awake smell output. Full flow is
+Intent: run nebuliser_2 as the awake smell output. Full flow is
 5s on / 25s off for 10 minutes; demo mode uses short visible pulses.
 """
 
@@ -15,7 +15,7 @@ try:
 except ImportError:
     lgpio = None
 
-SMELL_PINS = (12,)
+SMELL_PINS = (16,)
 FULL_DURATION_S = 10 * 60
 FULL_ON_S = 5
 FULL_OFF_S = 25
@@ -62,17 +62,17 @@ async def _run_awake_smell(log, duration_s: float, on_s: float, off_s: float) ->
         end_time = asyncio.get_running_loop().time() + duration_s
         while asyncio.get_running_loop().time() < end_time:
             _set_pins(outputs, 1)
-            _log(log, "info", "awake/smell nebuliser_1 on")
+            _log(log, "info", "awake/smell nebuliser_2 on")
             await asyncio.sleep(on_s)
             _set_pins(outputs, 0)
-            _log(log, "info", "awake/smell nebuliser_1 off")
+            _log(log, "info", "awake/smell nebuliser_2 off")
             await asyncio.sleep(off_s)
     except asyncio.CancelledError:
         raise
     finally:
         _close_outputs(outputs)
         sys._smell_handle = None
-        _log(log, "info", "awake/smell nebuliser_1 off")
+        _log(log, "info", "awake/smell nebuliser_2 off")
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
