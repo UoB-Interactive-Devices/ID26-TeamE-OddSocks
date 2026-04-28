@@ -7,6 +7,7 @@ Intent: run both nebulisers together as one awake smell output. Full flow is
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 
 try:
@@ -28,31 +29,55 @@ def _log(log, level: str, message: str) -> None:
         getattr(log, level)(message)
 
 
-def _set_pins(handle, value: int) -> None:
+def _open_outputs() -> list[tuple[int, int]]:
+    outputs = []
     for pin in SMELL_PINS:
+        handle = lgpio.gpiochip_open(0)
+        lgpio.gpio_claim_output(handle, pin)
+        lgpio.gpio_write(handle, pin, 0)
+        outputs.append((handle, pin))
+    return outputs
+
+
+def _set_pins(outputs: list[tuple[int, int]], value: int) -> None:
+    for handle, pin in outputs:
         lgpio.gpio_write(handle, pin, value)
 
 
-async def _run_awake_smell(log, duration_s: float, on_s: float, off_s: float) -> None:
-    handle = lgpio.gpiochip_open(0)
-    sys._smell_handle = handle
-    try:
-        for pin in SMELL_PINS:
-            lgpio.gpio_claim_output(handle, pin)
+def _close_outputs(outputs: list[tuple[int, int]]) -> None:
+    for handle, pin in outputs:
+        with contextlib.suppress(Exception):
+            lgpio.gpio_write(handle, pin, 0)
+        with contextlib.suppress(Exception):
+            if hasattr(lgpio, "gpio_free"):
+                lgpio.gpio_free(handle, pin)
+        with contextlib.suppress(Exception):
+            lgpio.gpiochip_close(handle)
 
+
+def _log_task_result(task: asyncio.Task, log) -> None:
+    with contextlib.suppress(asyncio.CancelledError):
+        exc = task.exception()
+        if exc is not None:
+            _log(log, "warning", f"awake/smell task failed: {exc}")
+
+
+async def _run_awake_smell(log, duration_s: float, on_s: float, off_s: float) -> None:
+    outputs = _open_outputs()
+    sys._smell_handle = outputs
+    try:
         end_time = asyncio.get_running_loop().time() + duration_s
         while asyncio.get_running_loop().time() < end_time:
-            _set_pins(handle, 1)
+            _set_pins(outputs, 1)
             _log(log, "info", "awake/smell nebulisers on")
             await asyncio.sleep(on_s)
-            _set_pins(handle, 0)
+            _set_pins(outputs, 0)
             _log(log, "info", "awake/smell nebulisers off")
             await asyncio.sleep(off_s)
     except asyncio.CancelledError:
         raise
     finally:
-        _set_pins(handle, 0)
-        lgpio.gpiochip_close(handle)
+        _close_outputs(outputs)
         sys._smell_handle = None
         _log(log, "info", "awake/smell nebulisers off")
 
@@ -75,5 +100,10 @@ async def run(context: dict) -> tuple[str, str, bool]:
     duration_s = DEMO_DURATION_S if demo_fast else FULL_DURATION_S
     on_s = DEMO_ON_S if demo_fast else FULL_ON_S
     off_s = DEMO_OFF_S if demo_fast else FULL_OFF_S
-    sys._smell_mist_task = asyncio.create_task(_run_awake_smell(log, duration_s, on_s, off_s))
+    task = asyncio.create_task(_run_awake_smell(log, duration_s, on_s, off_s))
+    task.add_done_callback(lambda done: _log_task_result(done, log))
+    sys._smell_mist_task = task
+    await asyncio.sleep(0)
+    if task.done():
+        task.result()
     return "smell_started", f"Awake smell cycle started for {duration_s:g}s", True
