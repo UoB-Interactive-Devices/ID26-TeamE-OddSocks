@@ -14,7 +14,7 @@ REM_DELAY_S = 3 * 60
 DEMO_DELAY_S = 0.5
 GAP_BETWEEN_BURSTS_S = 60
 FULL_BURSTS = 2
-DEMO_BURSTS = 1
+DEMO_BURSTS = 3
 
 
 async def run(context: dict) -> tuple[str, str, bool]:

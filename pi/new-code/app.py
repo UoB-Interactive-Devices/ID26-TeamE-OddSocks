@@ -534,16 +534,36 @@ class MasterApp:
                                 self.log.error(f"Failed to play {audio_path}: {e}")
                     
                     self.current_stage = stage
-                    await run_stage(
-                        stage=stage,
-                        ble_transport=self.ble,
-                        db=self.db,
-                        session_id=self.session_id,
-                        log=self.log.getChild("demo"),
-                        demo_fast=True,
+                    stage_task = asyncio.create_task(
+                        run_stage(
+                            stage=stage,
+                            ble_transport=self.ble,
+                            db=self.db,
+                            session_id=self.session_id,
+                            log=self.log.getChild("demo"),
+                            demo_fast=True,
+                        ),
+                        name=f"demo-stage-{stage}",
                     )
-                    if dwell_sec > 0:
-                        await asyncio.sleep(dwell_sec)
+                    try:
+                        if dwell_sec > 0:
+                            await asyncio.sleep(dwell_sec)
+                        if stage_task.done():
+                            await stage_task
+                        else:
+                            stage_task.cancel()
+                            try:
+                                await stage_task
+                            except asyncio.CancelledError:
+                                pass
+                    except asyncio.CancelledError:
+                        if not stage_task.done():
+                            stage_task.cancel()
+                        raise
+                    except Exception:
+                        if not stage_task.done():
+                            stage_task.cancel()
+                        raise
             
             # Play thank you at the end of the demo
             if os.path.exists(THANK_YOU_AUDIO):
