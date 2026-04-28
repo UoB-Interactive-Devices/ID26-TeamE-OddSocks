@@ -8,7 +8,6 @@ already running, do not add sharp stimulation here.
 
 from __future__ import annotations
 
-import asyncio
 import sys
 
 import pygame

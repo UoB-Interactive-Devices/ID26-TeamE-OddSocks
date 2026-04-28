@@ -2,9 +2,8 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Example intent: play the distinct chime/reality cue used before sleep, synced
-with the REM cues. Use the shared audio helper when replacing this example
-with real speaker playback.
+Intent: play the distinct chime/reality cue used before sleep, synced with the
+REM cues.
 """
 
 from __future__ import annotations
@@ -36,6 +35,7 @@ async def run(context: dict) -> tuple[str, str, bool]:
             chime = pygame.mixer.Sound(CHIME_FILE)
             chime_channel = pygame.mixer.find_channel()
             if chime_channel:
+                sys._rem_chime_sound = chime
                 chime_channel.play(chime)
                 log.info("rem/sound reality cue callback chime played")
         else:

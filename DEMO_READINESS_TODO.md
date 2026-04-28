@@ -20,8 +20,10 @@ Status key: `[x]` done, `[ ]` still needed.
 - [x] README explains autostart and viewing service logs with `journalctl`.
 - [x] Smell output stops when entering light sleep, deep sleep, not-worn, or unknown.
 - [x] REM LED code now checks SPI, uses explicit `show()`, turns off, and deinitializes.
-- [x] Awake/light sleep sound now starts or keeps a simple background pink-noise soundscape.
-- [x] REM sound stops background noise and plays a simple callback tone example.
+- [x] Awake/light sleep sound now starts or keeps looping `wave_noise.wav`.
+- [x] Deep sleep sound fades out the background wave loop.
+- [x] REM sound plays `wind_chimes.wav` as the callback cue.
+- [x] Demo script plays stage announcement MP3s and a final thank-you MP3.
 - [x] Demo stage runs now isolate stimulus failures and apply a demo timeout.
 - [x] Manual demo `SEND <stage>` can auto-start a session.
 - [x] REM below-pillow haptic now honors `demo_fast`.
@@ -53,9 +55,9 @@ Status key: `[x]` done, `[ ]` still needed.
 
 ### Safe Example Scaffold
 
-- [x] `stages/awake/sound.py` - starts background soundscape and plays example chime.
-- [x] `stages/light_sleep/sound.py` - keeps/restarts background soundscape.
-- [x] `stages/rem/sound.py` - stops background soundscape and plays example callback tone.
+- [x] `stages/awake/sound.py` - starts looping `wave_noise.wav` and plays `wind_chimes.wav`.
+- [x] `stages/light_sleep/sound.py` - keeps/restarts looping `wave_noise.wav`.
+- [x] `stages/rem/sound.py` - plays `wind_chimes.wav` as the REM callback cue.
 
 ### Intentional No-op / Keep Off
 

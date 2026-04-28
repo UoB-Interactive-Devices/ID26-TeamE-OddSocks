@@ -2,9 +2,8 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Example intent: start/keep a quiet masking sound, such as rainfall or waves,
-and optionally play one distinct reality-cue chime before the sleep attempt.
-Use the shared audio helper when replacing this example with real playback.
+Intent: start/keep a quiet masking wave sound and optionally play one distinct
+reality-cue chime before the sleep attempt.
 """
 
 from __future__ import annotations
@@ -28,31 +27,26 @@ async def run(context: dict) -> tuple[str, str, bool]:
         from hardware_setup import init_pygame_audio
         await asyncio.wait_for(asyncio.to_thread(init_pygame_audio), timeout=3.0)
 
-        # 1. Background masking wave noise
         channel = getattr(sys, "_background_sound_channel", None)
         if channel is None or not channel.get_busy():
             if os.path.exists(WAVE_FILE):
                 sound = pygame.mixer.Sound(WAVE_FILE)
-                # Play on an available channel, loop infinitely, fade in 2 seconds
                 channel = pygame.mixer.find_channel()
                 if channel:
                     channel.play(sound, loops=-1, fade_ms=2000)
                     sys._background_sound_channel = channel
-                    # Store the sound object itself so it doesn't get garbage collected!
                     sys._background_sound = sound
                     log.info("awake/sound wave soundscape started")
             else:
                 log.warning("awake/sound wave_noise.wav not found at %s", WAVE_FILE)
 
-        # 2. Reality cue chime
         # Table: "waits 5 minutes into the sleep attempt, then plays a distinct chime."
-        # In fast demo mode, we just wait a short moment (e.g. 2s) so it fits in the 20s awake block
         wait_time = 2.0 if demo_fast else 300.0
         await asyncio.sleep(wait_time)
 
         if os.path.exists(CHIME_FILE):
             chime = pygame.mixer.Sound(CHIME_FILE)
-            sys._chime_sound = chime  # Keep reference so it plays through completely
+            sys._chime_sound = chime
             chime.play()
             log.info("awake/sound wind chimes played")
         else:

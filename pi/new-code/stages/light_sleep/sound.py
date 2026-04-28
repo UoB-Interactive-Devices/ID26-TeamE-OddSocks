@@ -31,6 +31,7 @@ async def run(context: dict) -> tuple[str, str, bool]:
                 sound = pygame.mixer.Sound(WAVE_FILE)
                 channel = sound.play(loops=-1, fade_ms=2000)
                 sys._background_sound_channel = channel
+                sys._background_sound = sound
                 log.info("light_sleep/sound wave soundscape started")
             else:
                 log.warning("light_sleep/sound wave_noise.wav not found at %s", WAVE_FILE)
