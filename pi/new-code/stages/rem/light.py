@@ -1,8 +1,8 @@
 """Stage 'rem' + stimulus 'light'.
 
 Intent: keep LEDs off until REM has been detected for 3 minutes, then pulse
-red/amber light as a dream cue. Early REM gets a shorter red cue; later REM
-gets a longer red/amber cue. Demo mode shortens the delay and pulse window.
+with brightness ramps as a dream cue. Early REM uses red only; later REM ramps
+between red and amber. Demo mode shortens the delay and keeps the pattern going.
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ else:
 
 LED_COUNT = 9
 BRIGHTNESS = 0.12
+RAMP_STEPS = 30
+RAMP_STEP_S = 0.01
 REM_DELAY_S = 3 * 60
 DEMO_DELAY_S = 0.5
 EARLY_REM_SECONDS = 5
@@ -43,12 +45,21 @@ async def _pulse(pixels, duration_s: float, late_rem: bool) -> None:
     step = 0
 
     while asyncio.get_running_loop().time() < end_time:
-        pixels.fill(colors[step % len(colors)])
-        pixels.show()
-        await asyncio.sleep(0.5)
+        color = colors[step % len(colors)]
+        for brightness in range(RAMP_STEPS + 1):
+            pixels.brightness = BRIGHTNESS * (brightness / RAMP_STEPS)
+            pixels.fill(color)
+            pixels.show()
+            await asyncio.sleep(RAMP_STEP_S)
+        for brightness in range(RAMP_STEPS, -1, -1):
+            pixels.brightness = BRIGHTNESS * (brightness / RAMP_STEPS)
+            pixels.fill(color)
+            pixels.show()
+            await asyncio.sleep(RAMP_STEP_S)
+        pixels.brightness = BRIGHTNESS
         pixels.fill((0, 0, 0))
         pixels.show()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.2)
         step += 1
 
 

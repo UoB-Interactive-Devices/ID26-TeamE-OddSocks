@@ -23,6 +23,7 @@ DEMO_DELAY_S = 0.5
 GAP_BETWEEN_BURSTS_S = 60
 FULL_BURSTS = 2
 DEMO_BURSTS = 3
+DEMO_BURST_SECONDS = 1.8
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
@@ -43,7 +44,7 @@ async def run(context: dict) -> tuple[str, str, bool]:
         lgpio.tx_pwm(handle, PIN, 100, 0)
 
     async def burst() -> None:
-        burst_duration = 0.8 if demo_fast else random.uniform(1.0, 2.0)
+        burst_duration = DEMO_BURST_SECONDS if demo_fast else random.uniform(1.0, 2.0)
         elapsed = 0.0
         intensity = 20
 
