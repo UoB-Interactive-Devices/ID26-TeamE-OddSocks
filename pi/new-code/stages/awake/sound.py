@@ -2,8 +2,9 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Intent: start/keep a quiet masking wave sound and optionally play one distinct
-reality-cue chime before the sleep attempt.
+Intent: start/keep the wave masking sound and play the chime as a callback
+cue once immediately, then once again 5 minutes into the sleep attempt. Demo
+mode shortens the 5 minute wait.
 """
 
 from __future__ import annotations
@@ -17,6 +18,17 @@ import pygame
 
 WAVE_FILE = str(Path(__file__).resolve().parent.parent.parent / "wave_noise.wav")
 CHIME_FILE = str(Path(__file__).resolve().parent.parent.parent / "wind_chimes.wav")
+
+
+def _play_chime(log) -> bool:
+    if not os.path.exists(CHIME_FILE):
+        log.warning("awake/sound wind_chimes.wav not found at %s", CHIME_FILE)
+        return False
+
+    chime = pygame.mixer.Sound(CHIME_FILE)
+    sys._chime_sound = chime
+    chime.play()
+    return True
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
@@ -40,20 +52,19 @@ async def run(context: dict) -> tuple[str, str, bool]:
             else:
                 log.warning("awake/sound wave_noise.wav not found at %s", WAVE_FILE)
 
-        # Table: "waits 5 minutes into the sleep attempt, then plays a distinct chime."
+        first_chime = _play_chime(log)
+        if first_chime:
+            log.info("awake/sound first wind chime played")
+
         wait_time = 2.0 if demo_fast else 300.0
         await asyncio.sleep(wait_time)
 
-        if os.path.exists(CHIME_FILE):
-            chime = pygame.mixer.Sound(CHIME_FILE)
-            sys._chime_sound = chime
-            chime.play()
-            log.info("awake/sound wind chimes played")
-        else:
-            log.warning("awake/sound wind_chimes.wav not found at %s", CHIME_FILE)
+        second_chime = _play_chime(log)
+        if second_chime:
+            log.info("awake/sound second wind chime played")
 
     except Exception as exc:
         log.warning("awake/sound failed: %s", exc)
         return "sound_error", f"sound failed: {exc}", False
 
-    return "soundscape_started", "Background wave running and played reality chime", True
+    return "soundscape_started", "Background wave running; played awake reality chimes", True

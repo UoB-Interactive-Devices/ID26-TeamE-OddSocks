@@ -2,8 +2,8 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Example intent: a small wrist cue can act as a callback/reality-check anchor,
-but should stay gentle around sleep onset.
+Intent: send the awake callback cue to the watch as the user starts getting
+ready for bed. Keep it short so it works as an anchor without being disruptive.
 """
 
 from __future__ import annotations
@@ -19,10 +19,7 @@ def _awake_haptic_payload(duration_ms: int = 80) -> dict:
 
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    """Send a short buzz to signal awake detection.
-
-    context keys: stage, stimulus, send_watch_json, log
-    """
+    """Send a short buzz to signal the awake callback cue."""
     send_watch_json = context["send_watch_json"]
     log = context["log"]
 

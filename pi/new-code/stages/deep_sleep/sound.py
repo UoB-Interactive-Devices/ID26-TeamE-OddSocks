@@ -2,8 +2,8 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Team decision: no new sound cue in deep sleep. If background masking audio is
-already running, do not add sharp stimulation here.
+Intent: no sound in deep sleep. Fade out any existing background wave audio so
+the restorative stage stays quiet.
 """
 
 from __future__ import annotations

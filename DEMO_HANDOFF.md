@@ -140,9 +140,9 @@ Awake:
 
 - `light.py`: intentional no light.
 - `pi_motor.py`: intentional no pillow haptic.
-- `smell.py`: lavender mist task, GPIO12.
-- `sound.py`: starts looping `wave_noise.wav`, then plays `wind_chimes.wav`.
-- `watch_haptic.py`: short watch buzz example.
+- `smell.py`: steady lavender release on GPIO12 for 10 minutes, shortened in demo mode.
+- `sound.py`: starts looping `wave_noise.wav`, plays `wind_chimes.wav`, waits, then plays it again.
+- `watch_haptic.py`: short watch callback cue.
 
 Light sleep:
 
@@ -162,11 +162,11 @@ Deep sleep:
 
 REM:
 
-- `light.py`: SPI LED red/amber pulse example, with cleanup/deinit.
-- `pi_motor.py`: below-pillow haptic burst, honors `demo_fast`.
-- `smell.py`: peppermint mist task, GPIO16.
-- `sound.py`: plays `wind_chimes.wav` as the callback cue.
-- `watch_haptic.py`: wrist haptic burst, honors `demo_fast`.
+- `light.py`: waits 3 minutes, then pulses red or red/amber LEDs; demo mode shortens the wait and pulse window.
+- `pi_motor.py`: waits 3 minutes, then plays below-pillow irregular haptic bursts; demo mode shortens wait, bursts, and gaps.
+- `smell.py`: pulses peppermint on GPIO16 for 15 minutes, shortened in demo mode.
+- `sound.py`: waits 3 minutes, then plays `wind_chimes.wav` as the callback cue.
+- `watch_haptic.py`: waits 3 minutes, then plays wrist haptic bursts; demo mode shortens wait, bursts, and gaps.
 
 Unknown / not worn:
 
@@ -198,7 +198,7 @@ Stage stimulus assets:
 Behavior:
 
 - Demo runner plays the stage MP3 announcements before each stage, and `thank_you.mp3` at the end.
-- Awake sound starts looping `wave_noise.wav`, waits 2 seconds in demo mode or 5 minutes normally, then plays `wind_chimes.wav`.
+- Awake sound starts looping `wave_noise.wav`, plays `wind_chimes.wav`, waits 2 seconds in demo mode or 5 minutes normally, then plays `wind_chimes.wav` again.
 - Light sleep sound keeps or restarts the same wave loop.
 - Deep sleep sound fades out the wave loop.
 - REM sound waits 0.5 seconds in demo mode or 3 minutes normally, then plays `wind_chimes.wav`.
@@ -231,8 +231,8 @@ Syntax check:
 python3 -m py_compile pi/new-code/app.py pi/new-code/ble_transport.py pi/new-code/db.py pi/new-code/main.py pi/new-code/test_stimuli.py pi/new-code/hardware_setup.py pi/new-code/stages/*/*.py
 ```
 
-Search for accidental old placeholders:
+Search for accidental old scaffolding:
 
 ```bash
-rg "TODO: replace this placeholder|action = \"placeholder\"|Placeholder modules" pi/new-code/stages
+rg "TODO: replace|action = \"scaffold\"|Scaffold modules" pi/new-code/stages
 ```

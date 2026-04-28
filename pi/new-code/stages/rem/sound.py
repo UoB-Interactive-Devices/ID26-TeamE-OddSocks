@@ -2,8 +2,8 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Intent: play the distinct chime/reality cue used before sleep, synced with the
-REM cues.
+Intent: play the distinct chime/reality cue used before sleep after the same
+3-minute REM offset as the light and haptic cues. Demo mode shortens the wait.
 """
 
 from __future__ import annotations

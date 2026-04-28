@@ -2,8 +2,8 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Example intent: quiet masking sound can continue through light sleep to cover
-disruptive noise, but should not introduce a new sharp cue.
+Intent: keep the wave masking sound running through light sleep, without
+adding any new sharp cue.
 """
 
 from __future__ import annotations

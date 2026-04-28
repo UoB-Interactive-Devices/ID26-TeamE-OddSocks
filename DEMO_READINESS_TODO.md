@@ -15,18 +15,19 @@ Status key: `[x]` done, `[ ]` still needed.
 - [x] `test_stimuli.py` now uses the same shared Bluetooth/audio/preflight helpers.
 - [x] README updated with the new main-app setup flags.
 - [x] Stage files now include team intent notes from the research table.
-- [x] Old placeholder stage files now return either explicit no-op or safe example scaffold behavior.
+- [x] Stage files now return explicit actions or explicit no-op/keep-off results.
 - [x] Systemd service template updated for `/home/odd/...` and root GPIO/SPI access.
 - [x] README explains autostart and viewing service logs with `journalctl`.
 - [x] Smell output stops when entering light sleep, deep sleep, not-worn, or unknown.
-- [x] REM LED code now checks SPI, uses explicit `show()`, turns off, and deinitializes.
-- [x] Awake/light sleep sound now starts or keeps looping `wave_noise.wav`.
+- [x] REM LED code waits behind the demo gate, uses SPI, turns off, and deinitializes.
+- [x] Awake sound starts looping `wave_noise.wav` and plays `wind_chimes.wav` before and after the sleep-attempt wait.
+- [x] Light sleep sound keeps looping `wave_noise.wav`.
 - [x] Deep sleep sound fades out the background wave loop.
 - [x] REM sound plays `wind_chimes.wav` as the callback cue.
 - [x] Demo script plays stage announcement MP3s and a final thank-you MP3.
 - [x] Demo stage runs now isolate stimulus failures and apply a demo timeout.
 - [x] Manual demo `SEND <stage>` can auto-start a session.
-- [x] REM below-pillow haptic now honors `demo_fast`.
+- [x] REM light, wrist haptic, below-pillow haptic, and sound all use the 3-minute offset, shortened in demo mode.
 - [x] Syntax check passes:
   `python3 -m py_compile pi/new-code/app.py pi/new-code/ble_transport.py pi/new-code/db.py pi/new-code/main.py pi/new-code/test_stimuli.py pi/new-code/hardware_setup.py pi/new-code/stages/*/*.py`
 
@@ -49,13 +50,13 @@ Status key: `[x]` done, `[ ]` still needed.
 - [x] `stages/awake/watch_haptic.py`
 - [x] `stages/rem/watch_haptic.py`
 - [x] `stages/awake/smell.py`
-- [ ] `stages/rem/smell.py` - works, but long background behavior needs demo review.
+- [x] `stages/rem/smell.py`
 - [x] `stages/rem/light.py`
 - [x] `stages/rem/pi_motor.py`
 
 ### Safe Example Scaffold
 
-- [x] `stages/awake/sound.py` - starts looping `wave_noise.wav` and plays `wind_chimes.wav`.
+- [x] `stages/awake/sound.py` - starts looping `wave_noise.wav` and plays `wind_chimes.wav` twice.
 - [x] `stages/light_sleep/sound.py` - keeps/restarts looping `wave_noise.wav`.
 - [x] `stages/rem/sound.py` - plays `wind_chimes.wav` as the REM callback cue.
 
@@ -77,11 +78,9 @@ Status key: `[x]` done, `[ ]` still needed.
 
 ## If Time Allows
 
-- [ ] Implement one clear visible/tactile cue for `light_sleep`.
-- [ ] Implement one clear visible/tactile cue for `deep_sleep`.
 - [x] Implement demo speaker behavior using the shared DAC helper.
 - [ ] Decide whether watch `STOP` should stop the whole session or only cancel the demo script.
-- [x] Mark unused placeholder/no-op stage files clearly so logs do not imply unfinished behavior succeeded.
+- [x] Mark unused no-op stage files clearly so logs do not imply unfinished behavior succeeded.
 - [ ] Document Pi OS prerequisites in one place: `lgpio`, `bluetoothctl`, `rfkill`, `aplay`, `speaker-test`, `amixer`, SPI enabled.
 - [ ] Optional: show a Pi acknowledgement on the watch after commands are received.
 - [ ] Centralize hardware constants for pins, LED count, haptic pin, and audio defaults.

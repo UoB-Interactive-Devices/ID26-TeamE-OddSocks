@@ -1,64 +1,71 @@
-from __future__ import annotations
-import lgpio
-import random
-import asyncio
+"""Stage 'rem' + stimulus 'pi_motor'.
 
-# REM below-pillow haptic intent: tactile dream cue after REM detection, using
-# short irregular/ramping bursts. This mirrors the watch haptic idea but uses
-# the pillow motor for a stronger physical cue.
+Intent: use the below-pillow motor as a REM tactile cue after the same
+3-minute offset as the light and sound cues. The pattern is short, irregular,
+and gently ramping so it can become a dream cue without being a long buzz.
+Demo mode shortens the delay, burst count, and gaps.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import random
+
+try:
+    import lgpio
+except ImportError:
+    lgpio = None
 
 CHIP = 0
 PIN = 23
-delayAfterRem = 3 * 60 #3mins
-GAP_BETWEEN_BURSTS = 60
-remCycleNo = 2
+REM_DELAY_S = 3 * 60
+DEMO_DELAY_S = 0.5
+GAP_BETWEEN_BURSTS_S = 60
+FULL_BURSTS = 2
+DEMO_BURSTS = 3
+
 
 async def run(context: dict) -> tuple[str, str, bool]:
-    #await asyncio.sleep(delayAfterRem)
-    #Using await means the other stage files can run during the gaps
+    log = context["log"]
     demo_fast = bool(context.get("demo_fast"))
-    h = lgpio.gpiochip_open(CHIP)
-    lgpio.gpio_claim_output(h, PIN)
+    if lgpio is None:
+        log.warning("rem/pi_motor skipped; lgpio unavailable")
+        return "pi_motor_skipped", "lgpio unavailable", False
 
-    async def buzz(intensity, duration):
-        lgpio.tx_pwm(h, PIN, 100, intensity)
-        await asyncio.sleep(duration)
-        lgpio.tx_pwm(h, PIN, 100, 0)
+    await asyncio.sleep(DEMO_DELAY_S if demo_fast else REM_DELAY_S)
 
-    async def burst():
-        burst_duration = random.uniform(1.5, 2.0) if demo_fast else random.uniform(1.0, 2.0)
-        elapsed = 0
-        intensity = 20 
+    handle = lgpio.gpiochip_open(CHIP)
+    lgpio.gpio_claim_output(handle, PIN)
+
+    async def buzz(intensity: int, duration_s: float) -> None:
+        lgpio.tx_pwm(handle, PIN, 100, intensity)
+        await asyncio.sleep(duration_s)
+        lgpio.tx_pwm(handle, PIN, 100, 0)
+
+    async def burst() -> None:
+        burst_duration = 0.8 if demo_fast else random.uniform(1.0, 2.0)
+        elapsed = 0.0
+        intensity = 20
 
         while elapsed < burst_duration:
             intensity = min(intensity + random.randint(8, 18), 80)
+            on_s = random.choice([0.08, 0.12]) if demo_fast else random.choice([0.2, 0.3])
+            off_s = random.uniform(0.05, 0.08) if demo_fast else random.uniform(0.2, 0.3)
+            await buzz(intensity, on_s)
+            await asyncio.sleep(off_s)
+            elapsed += on_s + off_s
 
-            on_time = random.choice([0.08, 0.12]) if demo_fast else random.choice([0.2, 0.3])
-
-            gap_time = random.uniform(0.05, 0.08) if demo_fast else random.uniform(0.2, 0.3)
-
-            await buzz(intensity, on_time)
-            await asyncio.sleep(gap_time)
-
-            elapsed += on_time + gap_time
-
-    async def rem_cycle(bursts=remCycleNo, gap=GAP_BETWEEN_BURSTS):
-        if demo_fast:
-            bursts = 3
-            gap = 0.5
-        for i in range(bursts):
-            print(f"Burst {i + 1} of {bursts}")
-            await burst()
-
-            if i < bursts - 1:
-                print(f"Waiting {gap}s until next burst...")
-                await asyncio.sleep(gap)
+    bursts = DEMO_BURSTS if demo_fast else FULL_BURSTS
+    gap_s = 0.3 if demo_fast else GAP_BETWEEN_BURSTS_S
 
     try:
-        await rem_cycle()
+        for index in range(bursts):
+            await burst()
+            if index < bursts - 1:
+                await asyncio.sleep(gap_s)
     finally:
-        lgpio.tx_pwm(h, PIN, 100, 0)
-        lgpio.gpiochip_close(h)
+        lgpio.tx_pwm(handle, PIN, 100, 0)
+        lgpio.gpiochip_close(handle)
 
-    details = "demo fast below-pillow haptic burst" if demo_fast else "NremCycle buzz bursts with minute gaps"
-    return "pi-motor-buzz started", details, True
+    details = f"{bursts} below-pillow REM haptic burst(s)"
+    return "pi_motor_buzzed", details, True

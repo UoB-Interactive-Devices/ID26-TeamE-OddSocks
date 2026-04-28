@@ -2,9 +2,8 @@
 
 This file owns the logic for this exact stage/stimulus combination.
 
-Team note: any awake haptic cue should follow the same macro pattern as light
-and should not disturb the hours before sleep. Keep below-pillow haptics off
-here unless the team chooses a daytime-only callback routine later.
+Intent: no below-pillow haptic during awake preparation. The awake haptic
+callback cue is handled by the watch, because the user may not be in bed yet.
 """
 
 from __future__ import annotations
