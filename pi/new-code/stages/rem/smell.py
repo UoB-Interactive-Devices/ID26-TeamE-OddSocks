@@ -20,7 +20,7 @@ FULL_DURATION_S = 15 * 60
 FULL_ON_S = 5
 FULL_OFF_S = 25
 DEMO_DURATION_S = 40
-DEMO_ON_S = 1
+DEMO_ON_S = 2
 DEMO_OFF_S = 1
 
 
@@ -53,13 +53,6 @@ def _close_outputs(outputs: list[tuple[int, int]]) -> None:
                 lgpio.gpio_free(handle, pin)
         with contextlib.suppress(Exception):
             lgpio.gpiochip_close(handle)
-
-
-def _log_task_result(task: asyncio.Task, log) -> None:
-    with contextlib.suppress(asyncio.CancelledError):
-        exc = task.exception()
-        if exc is not None:
-            _log(log, "warning", f"rem/smell task failed: {exc}")
 
 
 async def _run_pulsed_smell(log, duration_s: float, on_s: float, off_s: float) -> None:
@@ -99,10 +92,9 @@ async def run(context: dict) -> tuple[str, str, bool]:
     duration_s = DEMO_DURATION_S if demo_fast else FULL_DURATION_S
     on_s = DEMO_ON_S if demo_fast else FULL_ON_S
     off_s = DEMO_OFF_S if demo_fast else FULL_OFF_S
-    task = asyncio.create_task(_run_pulsed_smell(log, duration_s, on_s, off_s))
-    task.add_done_callback(lambda done: _log_task_result(done, log))
-    sys._smell_mist_task = task
-    await asyncio.sleep(0)
-    if task.done():
-        task.result()
-    return "smell_started", f"Pulsed smell output started for {duration_s:g}s", True
+    sys._smell_mist_task = asyncio.current_task()
+    try:
+        await _run_pulsed_smell(log, duration_s, on_s, off_s)
+    finally:
+        sys._smell_mist_task = None
+    return "smell_finished", f"Pulsed smell output ran for {duration_s:g}s", True
