@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
-import pygame
 
 from ble_transport import BleTransport
 from db import Database
@@ -265,10 +265,14 @@ async def run_stage(
 
 class MasterApp:
     #The primary core of the program, most of the other pieces of code exist as prerequisites for this running asyncronously
-    def __init__(self, db: Database, log):
+    def __init__(self, db: Database, log, *, run_stimuli: bool = True):
         #Initialising itself with the values passed in the intial main call, and sets up the async cues
         self.db = db
         self.log = log
+        # Overnight log-only runs still create sessions and store stage packets,
+        # but they deliberately avoid firing Pi/watch stimulus modules.
+        self.run_stimuli = run_stimuli
+        self.packet_backup_path = self.db.db_path.with_name(self.db.db_path.stem + "_ble_packets.jsonl")
 
         self.state = "idle"
         self.current_stage = "unknown"
@@ -287,8 +291,27 @@ class MasterApp:
 
     async def _on_ble_packet(self, packet: dict) -> None:
         self.log.debug("app rx raw packet: %s", packet)
+        self._append_packet_backup(packet)
         #packet_queue is defined above as the queues in the dict, used specifically for await
         await self.packet_queue.put(packet)
+
+    def _append_packet_backup(self, packet: dict) -> None:
+        """Write every BLE packet to an append-only JSONL file before parsing.
+
+        This is a second recovery path for overnight tests: even if SQLite has
+        a write issue later, the raw watch packets can still be replayed.
+        """
+        line = {
+            "recv_ts_utc": datetime.now(timezone.utc).isoformat(),
+            "packet": packet,
+        }
+        try:
+            with self.packet_backup_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(line, separators=(",", ":")) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except Exception as exc:
+            self.log.warning("raw BLE packet backup failed: %s", exc)
 
     #The following two are obvious
     async def _on_ble_connected(self) -> None:
@@ -331,6 +354,8 @@ class MasterApp:
         #Dealing with the disconnect drops, with various states of checking the current state of the ble
         if not enable_ble:
             return
+        if not self.run_stimuli:
+            return
         if self.state != "running":
             return
         if self.ble.connected:
@@ -358,7 +383,13 @@ class MasterApp:
         self.log.debug("app canonical packet kind=%s payload=%s", kind, canonical)
 
         if kind == "dreamstream":
-            self.db.log_sleep_update(session_id=self.session_id, packet=canonical)
+            if not self.run_stimuli and self.state != "running":
+                await self.start_session()
+
+            try:
+                self.db.log_sleep_update(session_id=self.session_id, packet=canonical)
+            except Exception as exc:
+                self.log.error("sqlite sleep update failed; raw JSONL backup still has packet: %s", exc)
             #Assinging the current stage, creating a clear through line of each packet
             next_stage = canonical["stage"]
             previous_stage = self.current_stage
@@ -374,7 +405,7 @@ class MasterApp:
 
             # Watch sends regular epoch updates, so only run stage logic on
             # transitions to avoid repeatedly triggering the same actions.
-            if self.state == "running" and next_stage != previous_stage:
+            if self.run_stimuli and self.state == "running" and next_stage != previous_stage:
                 await run_stage(
                     stage=self.current_stage,
                     ble_transport=self.ble,
@@ -385,12 +416,15 @@ class MasterApp:
             return
 
         #This is seperate so every packet thats normalised is run through *something*
-        self.db.log_raw_packet(
-            session_id=self.session_id,
-            packet_kind=kind,
-            stage=canonical.get("stage"),
-            payload=packet,
-        )
+        try:
+            self.db.log_raw_packet(
+                session_id=self.session_id,
+                packet_kind=kind,
+                stage=canonical.get("stage"),
+                payload=packet,
+            )
+        except Exception as exc:
+            self.log.error("sqlite raw packet log failed; raw JSONL backup still has packet: %s", exc)
 
         #The two packet types assigned to start and stop, fairly obvious
         if kind == "start":
@@ -402,6 +436,9 @@ class MasterApp:
             return
 
         if kind == "demo_run":
+            if not self.run_stimuli:
+                self.log.info("demo run ignored; stimuli disabled")
+                return
             await self.start_demo_script(
                 schedule=canonical.get("schedule", DEMO_SCHEDULE),
                 cycles=canonical.get("cycles", 1),
@@ -420,6 +457,9 @@ class MasterApp:
                 self.log.info("stage command skipped: session not running")
                 return
             self.current_stage = canonical["stage"]
+            if not self.run_stimuli:
+                self.log.info("stage command logged only; stimuli disabled")
+                return
             await run_stage(
                 stage=self.current_stage,
                 ble_transport=self.ble,
@@ -434,7 +474,11 @@ class MasterApp:
         if self.state == "running":
             return
 
-        self.session_id = self.db.start_session()
+        try:
+            self.session_id = self.db.start_session()
+        except Exception as exc:
+            self.log.error("sqlite session start failed; continuing with raw JSONL backup: %s", exc)
+            self.session_id = None
         self.state = "running"
         self.current_stage = "unknown"
         self.log.info("session started id=%s", self.session_id)
@@ -445,7 +489,10 @@ class MasterApp:
         await self.stop_demo_script()
 
         if self.session_id is not None:
-            self.db.stop_session(session_id=self.session_id, reason=reason)
+            try:
+                self.db.stop_session(session_id=self.session_id, reason=reason)
+            except Exception as exc:
+                self.log.error("sqlite session stop failed: %s", exc)
 
         self.log.info("session stopped id=%s reason=%s", self.session_id, reason)
         self.session_id = None
@@ -488,8 +535,10 @@ class MasterApp:
         from hardware_setup import init_pygame_audio
         try:
             await asyncio.wait_for(asyncio.to_thread(init_pygame_audio), timeout=3.0)
+            import pygame
         except Exception as e:
             self.log.error(f"Failed to init pygame audio: {e}")
+            return
             
         try:
             for _ in range(max(1, cycles)):

@@ -23,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-ble", action="store_true", help="Disable BLE and use local test flow")
     parser.add_argument("--cli-test", action="store_true", help="Run interactive CLI test mode")
     parser.add_argument("--cli-test-ble", action="store_true", help="Enable BLE in CLI test mode and wait for watch connection")
+    parser.add_argument("--log-only", action="store_true", help="Store watch packets without running stage stimulus modules")
     parser.add_argument("--debug", action="store_true", help="Enable app debug logs (packets/state), without noisy BLE backend logs")
     parser.add_argument("--bleak-debug", action="store_true", help="Enable verbose Bleak/backend debug logs")
     parser.add_argument("--preflight", action="store_true", help="Run startup hardware prerequisite checks, then exit")
@@ -70,7 +71,7 @@ async def async_main(args: argparse.Namespace) -> None:
     #Database is within the db file, MasterApp is within the ble_transport file
     #More detail within those files
     db = Database(db_path=db_path)
-    app = MasterApp(db=db, log=log)
+    app = MasterApp(db=db, log=log, run_stimuli=not args.log_only)
 
     #event loop is how the program is async in the first place
     #This returns and gets an active loop for later

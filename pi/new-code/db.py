@@ -13,10 +13,12 @@ class Database:
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
         # Creating a database, there's a lot of sleep data we need to store
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, timeout=30)
         # I'll be so fr I just found this line online, it's an efficiency thing
         # More details here harlesleifer.com/blog/going-fast-with-sqlite-and-python/
         self.conn.execute("PRAGMA journal_mode=WAL")
+        # Overnight logging is low volume, so favour durability over speed.
+        self.conn.execute("PRAGMA synchronous=FULL")
         # schema is validation in SQL formats
         self._init_schema()
 
