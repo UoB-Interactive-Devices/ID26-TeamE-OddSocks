@@ -14,12 +14,38 @@
     wearTemp: 19.5,
     maxAwake: 36E5,
     minConsec: 18E5,
-    // REM / epoch settings
-    epochLen: 60,         // seconds per epoch
-    remLatency: 60,       // minutes before REM allowed
-    actWakeTh: 0.15,      // activity MAD threshold for wake
-    actDeepMax: 0.02,     // max activity for deep sleep
-    actRemMax: 0.04       // max activity for REM
+    // Continuous monitoring settings. Activity values are acceleration MAD
+    // scores, not proprietary actigraphy counts, so these thresholds are tuned
+    // to Bangle.js 2 sensor behaviour rather than copied from papers.
+    epochLen: 60,         // seconds per epoch; lower battery cost than 30s PSG epochs
+    remLatency: 70,       // minutes before REM allowed, following Yoon's heuristic
+
+    // Movement gates. Normal wake is smoothed, but a very large movement should
+    // break through immediately so the device does not cue during obvious wake.
+    actWakeTh: 0.15,      // movement high enough to be a wake candidate
+    strongWakeTh: 0.22,   // movement high enough for immediate wake
+    actDeepMax: 0.04,     // deep can tolerate quiet Bangle movement/noise
+    actRemMax: 0.04,      // REM should be still because of muscle atonia
+
+    // Cardiac gates. sdHR is a coarse PPG BPM-variability proxy, not clinical
+    // R-R interval HRV; it is still useful for stable deep vs unstable REM.
+    deepSdhrMax: 1.8,     // deep sleep should have stable HR
+    deepHrMargin: 6,      // bpm above rolling median still allowed for deep
+    remSdhrMin: 3.0,      // REM requires elevated HR variability
+    remHrMargin: 2,       // bpm above rolling median required for REM
+
+    // Adaptive REM score. This approximates Yoon's adaptive threshold idea with
+    // cheap z-scored watch features instead of PCA over ECG HRV parameters.
+    remScoreOffset: 0.6,  // adaptive REM score must exceed rolling baseline
+    historyMax: 120,      // rolling feature history, in epochs
+
+    // Temporal smoothing. Deep and REM need repeated recent candidates; this is
+    // the low-compute substitute for sequence models / smoothed features.
+    stageWindow: 8,       // smoothing window, in epochs
+    deepVotes: 5,
+    remVotes: 4,
+    wakeWindow: 3,
+    wakeVotes: 2
   };
 
   var STATUS = {
@@ -82,13 +108,25 @@
   function NightContext() {
     this.sleepStart = 0;       // timestamp ms of first sleep epoch
     this.monStart = 0;         // timestamp ms when monitoring started
+
+    // Legacy min/max fields are kept for debug compatibility, but the active
+    // classifier now uses rolling arrays below for real quantiles/baselines.
     this.hrMin = 999;
     this.hrMax = 0;
     this.hrSum = 0;
     this.hrCount = 0;
-    // Ring buffer of last 4 epoch stages for temporal smoothing
+
+    // Rolling feature histories for user-specific adaptation. These let the
+    // watch compare the current epoch with this night's recent baseline.
+    this.hrValues = [];
+    this.sdhrValues = [];
+    this.activityValues = [];
+    this.remScoreValues = [];
+
+    // Ring buffer of raw epoch stages for temporal smoothing
     this.ring = [];
-    this.ringMax = 4;
+    this.ringMax = 8;
+    this.lastStableStage = STATUS.UNKNOWN;
   }
 
   NightContext.prototype.reset = function() {
@@ -98,29 +136,99 @@
     this.hrMax = 0;
     this.hrSum = 0;
     this.hrCount = 0;
+    this.hrValues = [];
+    this.sdhrValues = [];
+    this.activityValues = [];
+    this.remScoreValues = [];
     this.ring = [];
+    this.lastStableStage = STATUS.UNKNOWN;
   };
 
-  /** Update HR distribution tracking. */
-  NightContext.prototype.addHR = function(meanHR) {
+  NightContext.prototype.pushLimited = function(arr, value, maxLen) {
+    if (value === undefined || value === null || !isFinite(value)) return;
+    arr.push(value);
+    while (arr.length > maxLen) arr.shift();
+  };
+
+  /**
+   * Update rolling feature distributions after a sleep-like epoch.
+   * Wake/not-worn epochs are deliberately excluded so personal sleep baselines
+   * are not pulled upward by getting out of bed or noisy sensor readings.
+   */
+  NightContext.prototype.addFeatures = function(meanHR, sdHR, activity, remScore, conf) {
+    var maxLen = (conf && conf.historyMax) || 120;
+    if (maxLen < 10) maxLen = 10;
     if (meanHR <= 0) return;
     if (meanHR < this.hrMin) this.hrMin = meanHR;
     if (meanHR > this.hrMax) this.hrMax = meanHR;
     this.hrSum += meanHR;
     this.hrCount++;
+    this.pushLimited(this.hrValues, meanHR, maxLen);
+    this.pushLimited(this.sdhrValues, sdHR, maxLen);
+    this.pushLimited(this.activityValues, activity, maxLen);
+    this.pushLimited(this.remScoreValues, remScore, maxLen);
   };
 
-  /** Approximate percentile from min/max/mean using linear interpolation. */
+  NightContext.prototype.quantile = function(arr, p) {
+    var n = arr.length;
+    if (n < 3) return 0;
+    var a = arr.slice().sort(function(x, y) { return x - y; });
+    var idx = (n - 1) * p;
+    var lo = Math.floor(idx);
+    var hi = Math.ceil(idx);
+    if (lo === hi) return a[lo];
+    return a[lo] + (a[hi] - a[lo]) * (idx - lo);
+  };
+
+  NightContext.prototype.mean = function(arr) {
+    var n = arr.length;
+    if (!n) return 0;
+    var s = 0;
+    for (var i = 0; i < n; i++) s += arr[i];
+    return s / n;
+  };
+
+  NightContext.prototype.std = function(arr) {
+    var n = arr.length;
+    if (n < 3) return 0;
+    var m = this.mean(arr);
+    var s = 0;
+    for (var i = 0; i < n; i++) {
+      var d = arr[i] - m;
+      s += d * d;
+    }
+    return Math.sqrt(s / (n - 1));
+  };
+
+  NightContext.prototype.zScore = function(value, arr) {
+    var sd = this.std(arr);
+    if (!sd) return 0;
+    var z = (value - this.mean(arr)) / sd;
+    // Clamp extreme z-scores so one very flat history does not create a huge
+    // REM score when the first variable epoch arrives.
+    if (z > 4) return 4;
+    if (z < -4) return -4;
+    return z;
+  };
+
+  /** Rolling percentile over recent sleep-like epochs. */
   NightContext.prototype.hrPercentile = function(p) {
-    if (this.hrCount < 3) return 0;
-    // Simple estimate: assume roughly normal distribution around mean
-    // P20 ≈ min + 0.2*(max-min), P50 ≈ mean, P80 ≈ min + 0.8*(max-min)
-    return this.hrMin + p * (this.hrMax - this.hrMin);
+    return this.quantile(this.hrValues, p);
   };
 
   NightContext.prototype.hrP20 = function() { return this.hrPercentile(0.2); };
-  NightContext.prototype.hrP50 = function() {
-    return this.hrCount > 0 ? this.hrSum / this.hrCount : 0;
+  NightContext.prototype.hrP50 = function() { return this.hrPercentile(0.5); };
+
+  NightContext.prototype.remScore = function(activity, meanHR, sdHR) {
+    // REM-like physiology is: HR above personal baseline, HR variability above
+    // personal baseline, and movement below personal baseline.
+    return this.zScore(meanHR, this.hrValues) +
+      this.zScore(sdHR, this.sdhrValues) -
+      this.zScore(activity, this.activityValues);
+  };
+
+  NightContext.prototype.remScoreBaseline = function() {
+    return this.quantile(this.remScoreValues, 0.5);
   };
 
   /** Push a stage to the ring buffer for smoothing. */
@@ -135,6 +243,48 @@
     for (var i = 0; i < this.ring.length; i++)
       if (this.ring[i] === stage) c++;
     return c;
+  };
+
+  NightContext.prototype.ringCountRecent = function(stage, window) {
+    var c = 0;
+    var start = this.ring.length - window;
+    if (start < 0) start = 0;
+    for (var i = start; i < this.ring.length; i++)
+      if (this.ring[i] === stage) c++;
+    return c;
+  };
+
+  /**
+   * Convert a raw one-minute decision into a stable reported stage.
+   * The raw rules are intentionally responsive, but the reported stage needs
+   * hysteresis so one noisy minute does not trigger a stimulus or fragment logs.
+   */
+  NightContext.prototype.smoothStage = function(rawStage, conf, immediateWake) {
+    this.ringMax = conf.stageWindow || this.ringMax || 8;
+    this.pushStage(rawStage);
+
+    var out = STATUS.LIGHT_SLEEP;
+    if (rawStage === STATUS.AWAKE) {
+      // High movement means wake now; weaker wake candidates need repeated
+      // support so REM-like HR spikes are not treated as awake too easily.
+      if (immediateWake ||
+        this.ringCountRecent(STATUS.AWAKE, conf.wakeWindow || 3) >= (conf.wakeVotes || 2)) {
+        out = STATUS.AWAKE;
+      } else {
+        out = this.lastStableStage > STATUS.AWAKE ? this.lastStableStage : STATUS.LIGHT_SLEEP;
+      }
+    } else if (rawStage === STATUS.DEEP_SLEEP) {
+      // Deep and REM are only exposed after enough recent candidates. Until
+      // then, light sleep is the safest sleep-like default.
+      out = this.ringCountRecent(STATUS.DEEP_SLEEP, conf.stageWindow || 8) >= (conf.deepVotes || 5) ?
+        STATUS.DEEP_SLEEP : STATUS.LIGHT_SLEEP;
+    } else if (rawStage === STATUS.REM_SLEEP) {
+      out = this.ringCountRecent(STATUS.REM_SLEEP, conf.stageWindow || 8) >= (conf.remVotes || 5) ?
+        STATUS.REM_SLEEP : STATUS.LIGHT_SLEEP;
+    }
+
+    this.lastStableStage = out;
+    return out;
   };
 
   /** Minutes since monitoring started. */
@@ -165,7 +315,8 @@
     var hrCount = features.hrCount;
     var now = features.ts;
 
-    // Not enough HR data — rely on activity only
+    // Not enough HR data: use movement-only decisions for wake/not-worn and
+    // default sleep-like stillness to light rather than inventing HR stages.
     var hrValid = hrCount >= 3 && meanHR > 20;
 
     // ── 1. Wear detection ──
@@ -174,49 +325,58 @@
     if (!hrValid && activity < 0.005) return STATUS.NOT_WORN;
 
     // ── 2. Wake vs sleep ──
-    if (activity > conf.actWakeTh) return STATUS.AWAKE;
-    if (hrValid && meanHR > (conf.hrmLightTh || 74) + 10) return STATUS.AWAKE;
+    // HR alone is not enough to call wake because REM can also raise HR.
+    var immediateWake = activity > (conf.strongWakeTh || 0.22);
+    var wakeCandidate = activity > conf.actWakeTh;
+    if (hrValid && meanHR > (conf.hrmLightTh || 74) + 10 &&
+      (activity > (conf.actRemMax || 0.04) || sdHR > ((conf.remSdhrMin || 3) + 2))) {
+      wakeCandidate = true;
+    }
+    if (wakeCandidate) return ctx.smoothStage(STATUS.AWAKE, conf, immediateWake);
 
-    // From here, candidate is sleep (low activity)
-    // Record sleep onset
+    // From here, the epoch is sleep-like: low movement and not obviously off
+    // wrist. The first sleep-like epoch starts the REM-latency clock.
     if (!ctx.sleepStart) ctx.sleepStart = now;
-    // Accumulate HR stats
-    if (hrValid) ctx.addHR(meanHR);
 
-    var hrP20 = ctx.hrP20();
     var hrP50 = ctx.hrP50();
     var minsSleep = ctx.minutesSinceSleep(now);
+    var remScore = hrValid ? ctx.remScore(activity, meanHR, sdHR) : 0;
+    features.remScore = remScore;
+    var rawStage = STATUS.LIGHT_SLEEP;
 
     // ── 3. Deep sleep ──
-    // Very low activity + HR in bottom 20th percentile of night
-    if (activity < conf.actDeepMax && hrValid && hrP20 > 0 && meanHR < hrP20) {
-      // Require >= 2 consecutive deep candidates (via ring buffer)
-      ctx.pushStage(STATUS.DEEP_SLEEP);
-      if (ctx.ringCount(STATUS.DEEP_SLEEP) >= 2) return STATUS.DEEP_SLEEP;
-      // Not enough consecutive — call it light for now
-      return STATUS.LIGHT_SLEEP;
+    // Deep is quiet and autonomically stable. The HR margin is deliberately
+    // loose because Bangle PPG is noisy and Withings comparison showed that a
+    // too-strict HR/actigraphy gate under-called deep sleep.
+    if (activity < conf.actDeepMax && hrValid && hrP50 > 0 &&
+      sdHR <= (conf.deepSdhrMax || 1.5) &&
+      meanHR <= hrP50 + (conf.deepHrMargin || 2)) {
+      rawStage = STATUS.DEEP_SLEEP;
     }
 
     // ── 4. REM vs light ──
+    // Yoon-style adaptive idea: cardiac activation must exceed a rolling
+    // personal baseline, occur while movement remains low, and happen after
+    // normal first-cycle REM latency.
     var remCandidate = (
       activity < conf.actRemMax &&       // still (muscle atonia)
       hrValid &&
       minsSleep >= conf.remLatency &&     // REM latency constraint
       hrP50 > 0 &&
-      meanHR > hrP50 &&                   // HR elevated vs median
-      sdHR > 2.0                          // autonomic instability (sdHR > 2 bpm)
+      meanHR >= hrP50 + (conf.remHrMargin || 2) &&
+      sdHR >= (conf.remSdhrMin || 3) &&
+      ctx.remScoreValues.length >= 10 &&
+      remScore > ctx.remScoreBaseline() + (conf.remScoreOffset || 0.8)
     );
 
-    if (remCandidate) {
-      ctx.pushStage(STATUS.REM_SLEEP);
-      // Require >= 2 consecutive REM candidates
-      if (ctx.ringCount(STATUS.REM_SLEEP) >= 2) return STATUS.REM_SLEEP;
-      return STATUS.LIGHT_SLEEP;
-    }
+    if (remCandidate) rawStage = STATUS.REM_SLEEP;
 
-    // ── 5. Default: light sleep ──
-    ctx.pushStage(STATUS.LIGHT_SLEEP);
-    return STATUS.LIGHT_SLEEP;
+    if (hrValid) ctx.addFeatures(meanHR, sdHR, activity, remScore, conf);
+
+    // ── 5. Stable reported stage ──
+    // Report the smoothed stage, not the raw candidate, so downstream cueing
+    // reacts to sleep episodes rather than individual noisy epochs.
+    return ctx.smoothStage(rawStage, conf, false);
   }
 
   // ── Exports ──

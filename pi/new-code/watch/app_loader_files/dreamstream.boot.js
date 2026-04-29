@@ -302,18 +302,34 @@
       data.prevConsecutive = this.consecutive;
       this.info.lastCheck = data.timestamp;
 
-      // Correct light sleep to awake if not previously deep sleeping
-      // and no sleep session is active (consistent with original sleeplog)
-      if (data.status === STATUS.LIGHT_SLEEP && this.status !== STATUS.DEEP_SLEEP && !this.info.asleepSince) {
+      // The original sleeplog state machine only treated deep sleep as the
+      // start of a confirmed sleep session. In monitoring mode our classifier
+      // has a fuller stage set, so light/deep/REM all count as sleep-like.
+      var isSleepStage = data.status === STATUS.LIGHT_SLEEP ||
+        data.status === STATUS.DEEP_SLEEP ||
+        data.status === STATUS.REM_SLEEP;
+      var wasSleepStage = this.status === STATUS.LIGHT_SLEEP ||
+        this.status === STATUS.DEEP_SLEEP ||
+        this.status === STATUS.REM_SLEEP;
+
+      // Keep the old sleeplog correction only for fallback health-event mode.
+      // During continuous monitoring, forcing early light sleep back to awake
+      // delays sleep onset and distorts REM-latency timing.
+      if (!this.monitoring && data.status === STATUS.LIGHT_SLEEP &&
+        this.status !== STATUS.DEEP_SLEEP && !this.info.asleepSince) {
         data.status = STATUS.AWAKE;
+        isSleepStage = false;
       }
 
       data.consecutive = this.consecutive;
 
-      if (data.status === STATUS.DEEP_SLEEP && this.status <= STATUS.AWAKE) {
+      // Track possible sleep/wake transitions. The consecutive flag is kept
+      // for compatibility with older receiver/UI logic, but stage decisions
+      // now come from the classifier's own temporal smoothing.
+      if (isSleepStage && !wasSleepStage) {
         this.info.asleepSince = this.info.asleepSince || data.timestamp;
         data.consecutive = CONSECUTIVE.UNKNOWN;
-      } else if (data.status === STATUS.AWAKE && this.status > STATUS.AWAKE) {
+      } else if (data.status === STATUS.AWAKE && wasSleepStage) {
         this.info.awakeSince = this.info.awakeSince || data.timestamp;
         data.consecutive = CONSECUTIVE.UNKNOWN;
       }
@@ -321,7 +337,7 @@
       if (data.status === STATUS.NOT_WORN) this.consecutive = CONSECUTIVE.NO;
 
       if (!this.consecutive) {
-        if (data.status === STATUS.DEEP_SLEEP && this.info.asleepSince &&
+        if (isSleepStage && this.info.asleepSince &&
           this.info.asleepSince + this.conf.minConsec <= data.timestamp) {
           data.consecutive = CONSECUTIVE.YES;
           this.info.awakeSince = 0;
