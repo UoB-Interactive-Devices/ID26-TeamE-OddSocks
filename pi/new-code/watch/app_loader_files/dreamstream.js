@@ -6,14 +6,6 @@
 
   var DEFAULTS = {
     enabled: true,
-    preferHRM: false,
-    deepTh: 150,
-    lightTh: 300,
-    hrmDeepTh: 60,
-    hrmLightTh: 74,
-    wearTemp: 19.5,
-    maxAwake: 36E5,
-    minConsec: 18E5,
     // Continuous monitoring settings. Activity values are acceleration MAD
     // scores, not proprietary actigraphy counts, so these thresholds are tuned
     // to Bangle.js 2 sensor behaviour rather than copied from papers.
@@ -29,6 +21,7 @@
 
     // Cardiac gates. sdHR is a coarse PPG BPM-variability proxy, not clinical
     // R-R interval HRV; it is still useful for stable deep vs unstable REM.
+    wakeHrTh: 84,         // HR this high supports wake only with movement/very high sdHR
     deepSdhrMax: 1.8,     // deep sleep should have stable HR
     deepHrMargin: 6,      // bpm above rolling median still allowed for deep
     remSdhrMin: 3.0,      // REM requires elevated HR variability
@@ -55,12 +48,6 @@
     LIGHT_SLEEP: 3,
     DEEP_SLEEP: 4,
     REM_SLEEP: 5
-  };
-
-  var CONSECUTIVE = {
-    UNKNOWN: 0,
-    NO: 1,
-    YES: 2
   };
 
   function loadSettings() {
@@ -109,13 +96,6 @@
     this.sleepStart = 0;       // timestamp ms of first sleep epoch
     this.monStart = 0;         // timestamp ms when monitoring started
 
-    // Legacy min/max fields are kept for debug compatibility, but the active
-    // classifier now uses rolling arrays below for real quantiles/baselines.
-    this.hrMin = 999;
-    this.hrMax = 0;
-    this.hrSum = 0;
-    this.hrCount = 0;
-
     // Rolling feature histories for user-specific adaptation. These let the
     // watch compare the current epoch with this night's recent baseline.
     this.hrValues = [];
@@ -132,10 +112,6 @@
   NightContext.prototype.reset = function() {
     this.sleepStart = 0;
     this.monStart = 0;
-    this.hrMin = 999;
-    this.hrMax = 0;
-    this.hrSum = 0;
-    this.hrCount = 0;
     this.hrValues = [];
     this.sdhrValues = [];
     this.activityValues = [];
@@ -159,10 +135,6 @@
     var maxLen = (conf && conf.historyMax) || 120;
     if (maxLen < 10) maxLen = 10;
     if (meanHR <= 0) return;
-    if (meanHR < this.hrMin) this.hrMin = meanHR;
-    if (meanHR > this.hrMax) this.hrMax = meanHR;
-    this.hrSum += meanHR;
-    this.hrCount++;
     this.pushLimited(this.hrValues, meanHR, maxLen);
     this.pushLimited(this.sdhrValues, sdHR, maxLen);
     this.pushLimited(this.activityValues, activity, maxLen);
@@ -216,7 +188,6 @@
     return this.quantile(this.hrValues, p);
   };
 
-  NightContext.prototype.hrP20 = function() { return this.hrPercentile(0.2); };
   NightContext.prototype.hrP50 = function() { return this.hrPercentile(0.5); };
 
   NightContext.prototype.remScore = function(activity, meanHR, sdHR) {
@@ -235,14 +206,6 @@
   NightContext.prototype.pushStage = function(stage) {
     this.ring.push(stage);
     if (this.ring.length > this.ringMax) this.ring.shift();
-  };
-
-  /** Count occurrences of a stage in ring buffer. */
-  NightContext.prototype.ringCount = function(stage) {
-    var c = 0;
-    for (var i = 0; i < this.ring.length; i++)
-      if (this.ring[i] === stage) c++;
-    return c;
   };
 
   NightContext.prototype.ringCountRecent = function(stage, window) {
@@ -328,7 +291,7 @@
     // HR alone is not enough to call wake because REM can also raise HR.
     var immediateWake = activity > (conf.strongWakeTh || 0.22);
     var wakeCandidate = activity > conf.actWakeTh;
-    if (hrValid && meanHR > (conf.hrmLightTh || 74) + 10 &&
+    if (hrValid && meanHR > (conf.wakeHrTh || 84) &&
       (activity > (conf.actRemMax || 0.04) || sdHR > ((conf.remSdhrMin || 3) + 2))) {
       wakeCandidate = true;
     }
@@ -384,7 +347,6 @@
   exports.SETTINGS_FILE = SETTINGS_FILE;
   exports.DEFAULTS = DEFAULTS;
   exports.STATUS = STATUS;
-  exports.CONSECUTIVE = CONSECUTIVE;
   exports.loadSettings = loadSettings;
   exports.saveSettings = saveSettings;
   exports.computeActivity = computeActivity;

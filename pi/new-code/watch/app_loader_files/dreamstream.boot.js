@@ -1,11 +1,10 @@
 // Background boot service for Bangle.js 2.
-// Computes sleep state on each health event and streams updates over BLE UART.
-// Includes continuous epoch-based sleep monitoring for REM detection.
+// Runs manual start/stop sleep monitoring and streams each classified epoch
+// over BLE UART for the Raspberry Pi receiver.
 
 (function () {
   var lib = require("dreamstream.js");
   var STATUS = lib.STATUS;
-  var CONSECUTIVE = lib.CONSECUTIVE;
   var RUNTIME_FILE = "sleepstream.runtime.json";
   var EPOCH_LOG = "sleepstream.epochs.log";
 
@@ -15,30 +14,24 @@
     return;
   }
 
-  function to10MinStep(ms) {
-    return ((ms / 6E5) | 0) * 6E5;
-  }
-
   global.sleepstream = {
     conf: conf,
     status: STATUS.UNKNOWN,
-    consecutive: CONSECUTIVE.UNKNOWN,
     sequence: 0,
     connected: false,
     info: {
-      lastCheck: 0,
-      lastChange: 0,
-      asleepSince: 0,
-      awakeSince: 0
+      lastEpoch: 0,
+      lastChange: 0
     },
 
-    // ── Monitoring state ──
+    // Monitoring state for the current manual session.
     monitoring: false,
     nightCtx: null,
     epochInterval: null,
     accelListener: null,
     hrmListener: null,
-    // Epoch accumulators
+
+    // Epoch accumulators. These are reset after every classification window.
     magSum: 0,
     magAbsDevSum: 0,
     magCount: 0,
@@ -60,12 +53,10 @@
       NRF.on("connect", this.onConnect);
       NRF.on("disconnect", this.onDisconnect);
       E.on("kill", this.saveRuntimeState);
-      Bangle.prependListener("health", this.health);
     },
 
     stop: function () {
       this.stopMonitoring();
-      Bangle.removeListener("health", this.health);
       NRF.removeListener("connect", this.onConnect);
       NRF.removeListener("disconnect", this.onDisconnect);
       E.removeListener("kill", this.saveRuntimeState);
@@ -75,73 +66,71 @@
       if (!global.sleepstream) return;
       require("Storage").writeJSON(RUNTIME_FILE, {
         status: global.sleepstream.status,
-        consecutive: global.sleepstream.consecutive,
         sequence: global.sleepstream.sequence,
-        info: global.sleepstream.info,
-        monitoring: global.sleepstream.monitoring
+        info: global.sleepstream.info
       });
     },
 
     restoreRuntimeState: function () {
       var saved = require("Storage").readJSON(RUNTIME_FILE, true) || {};
       if (typeof saved.status === "number") this.status = saved.status | 0;
-      if (typeof saved.consecutive === "number") this.consecutive = saved.consecutive | 0;
       if (typeof saved.sequence === "number") this.sequence = saved.sequence >>> 0;
 
       if (saved.info && typeof saved.info === "object") {
-        this.info.lastCheck = saved.info.lastCheck | 0;
+        this.info.lastEpoch = saved.info.lastEpoch | 0;
         this.info.lastChange = saved.info.lastChange | 0;
-        this.info.asleepSince = saved.info.asleepSince | 0;
-        this.info.awakeSince = saved.info.awakeSince | 0;
       }
     },
 
-    // ── Sleep monitoring ──
+    // Sleep monitoring
 
     startMonitoring: function () {
       if (this.monitoring) return;
       this.monitoring = true;
       this.nightCtx = new lib.NightContext();
       this.nightCtx.monStart = Date.now();
+      this.status = STATUS.UNKNOWN;
       this.currentStage = STATUS.UNKNOWN;
       this.lastFeatures = null;
+      this.info.lastEpoch = 0;
+      this.info.lastChange = 0;
 
-      // Reset accumulators
+      // Start every manual session with empty sensor accumulators.
       this.magSum = 0;
       this.magAbsDevSum = 0;
       this.magCount = 0;
       this.magRunMean = 1;
       this.bpmBuf = [];
 
-      // Enable HRM
+      // Keep the HRM powered only during an active session to save battery.
       Bangle.setHRMPower(true, "sleepstream");
 
-      // Accel listener — incremental MAD computation
+      // Accelerometer samples are reduced online into mean absolute deviation
+      // of magnitude. This gives a cheap movement score without storing samples.
       var self = this;
       this.accelListener = function (a) {
         var m = a.mag;
         self.magCount++;
         self.magSum += m;
-        // Update running mean with exponential moving average
         self.magRunMean = self.magRunMean * 0.99 + m * 0.01;
-        // Accumulate absolute deviation from running mean
         var dev = m - self.magRunMean;
         if (dev < 0) dev = -dev;
         self.magAbsDevSum += dev;
       };
       Bangle.on("accel", this.accelListener);
 
-      // HRM listener — collect BPM readings
+      // PPG BPM readings are filtered by confidence and physiological range
+      // before they contribute to mean HR and BPM variability for the epoch.
       this.hrmListener = function (hrm) {
         if (hrm.confidence > 30 && hrm.bpm > 20 && hrm.bpm < 220) {
           self.bpmBuf.push(hrm.bpm);
-          // Cap buffer size to prevent memory growth
           if (self.bpmBuf.length > 60) self.bpmBuf.shift();
         }
       };
       Bangle.on("HRM", this.hrmListener);
 
-      // Epoch interval
+      // The classifier runs once per epoch; all raw sensor sampling happens in
+      // the listeners above between interval ticks.
       this.epochInterval = setInterval(function () {
         self.processEpoch();
       }, (this.conf.epochLen || 60) * 1000);
@@ -153,10 +142,9 @@
       if (!this.monitoring) return;
       this.monitoring = false;
 
-      // Disable HRM
       Bangle.setHRMPower(false, "sleepstream");
 
-      // Remove listeners
+      // Remove active session listeners so the watch returns to idle behaviour.
       if (this.accelListener) {
         Bangle.removeListener("accel", this.accelListener);
         this.accelListener = null;
@@ -166,15 +154,16 @@
         this.hrmListener = null;
       }
 
-      // Clear interval
       if (this.epochInterval) {
         clearInterval(this.epochInterval);
         this.epochInterval = null;
       }
 
       this.nightCtx = null;
+      this.status = STATUS.UNKNOWN;
       this.currentStage = STATUS.UNKNOWN;
       this.lastFeatures = null;
+      this.info.lastChange = Date.now();
 
       Bangle.buzz(80);
     },
@@ -196,21 +185,26 @@
 
       this.lastFeatures = features;
       this.currentStage = lib.classifyEpoch(features, this.nightCtx, this.conf);
+      this.info.lastEpoch = now;
+      if (this.status !== this.currentStage) this.info.lastChange = now;
+      this.status = this.currentStage;
 
-      // Log epoch to on-device storage (survives BLE disconnects)
+      // Keep a compact on-watch CSV-style epoch log so BLE disconnects do not
+      // lose the evidence used for later debugging/report plots.
       this.logEpoch(now, this.currentStage, features);
 
-      // Push BLE update immediately for real-time triggers (e.g. REM actions)
+      // Push the latest stage immediately for real-time triggers, especially
+      // REM-based stimulation on the Pi side.
       var data = {
         timestamp: now,
         status: this.currentStage,
-        movement: Math.round(activity * 1000), 
+        movement: Math.round(activity * 1000),
         bpm: Math.round(hr.meanHR)
       };
-      this.applyState(data);
-      this.sendUpdate(data, 1);
+      this.sendUpdate(data);
 
-      // Reset accumulators for next epoch
+      // Start the next epoch with fresh accumulators while retaining the
+      // classifier's rolling night context.
       this.magSum = 0;
       this.magAbsDevSum = 0;
       this.magCount = 0;
@@ -230,156 +224,22 @@
       } catch (e) { }
     },
 
-    // ── Original classifier (fallback when not monitoring) ──
-
-    classifyStatus: function (data, sourceMode) {
-      if (Bangle.isCharging()) return STATUS.NOT_WORN;
-      if (sourceMode === 1) {
-        return data.bpm <= this.conf.hrmDeepTh ? STATUS.DEEP_SLEEP :
-          data.bpm <= this.conf.hrmLightTh ? STATUS.LIGHT_SLEEP : STATUS.AWAKE;
-      }
-      return data.movement <= this.conf.deepTh ? STATUS.DEEP_SLEEP :
-        data.movement <= this.conf.lightTh ? STATUS.LIGHT_SLEEP : STATUS.AWAKE;
-    },
-
-    health: function (data) {
-      if (!global.sleepstream) return;
-      if (!data || (data.movement === undefined && data.bpm === undefined)) return;
-
-      data.timestamp = data.timestamp || to10MinStep(Date.now() - 6E5);
-
-      // If monitoring, use the epoch classifier's current stage
-      if (global.sleepstream.monitoring && global.sleepstream.currentStage !== STATUS.UNKNOWN) {
-        data.status = global.sleepstream.currentStage;
-        var sourceMode = 1; // HRM-based when monitoring
-        global.sleepstream.applyState(data);
-        global.sleepstream.sendUpdate(data, sourceMode);
-        return;
-      }
-
-      // Fallback: original classifier
-      var sourceMode = (global.sleepstream.conf.preferHRM && data.bpm) ? 1 : 0;
-      data.status = global.sleepstream.classifyStatus(data, sourceMode);
-
-      // When transitioning to deep sleep from non-sleeping, verify wearing status
-      if (data.status === STATUS.DEEP_SLEEP && global.sleepstream.status <= STATUS.AWAKE) {
-        global.sleepstream.checkIsWearing(function (isWearing, corrected) {
-          if (!isWearing) corrected.status = STATUS.NOT_WORN;
-          global.sleepstream.applyState(corrected);
-          global.sleepstream.sendUpdate(corrected, sourceMode);
-        }, data);
-        return;
-      }
-
-      global.sleepstream.applyState(data);
-      global.sleepstream.sendUpdate(data, sourceMode);
-    },
-
-    // Wear detection consistent with original sleeplog boot.js.
-    checkIsWearing: function (returnFn, data) {
-      if (this.conf.wearTemp !== 19.5) {
-        return returnFn(!Bangle.isCharging() && E.getTemperature() >= this.conf.wearTemp, data);
-      }
-
-      var tmp = {
-        isWearing: false,
-        listener: function (hrm) { tmp.isWearing = !!hrm.isWearing; }
-      };
-
-      Bangle.setHRMPower(true, "sleepstream-wearing");
-      setTimeout(function () {
-        Bangle.on("HRM-raw", tmp.listener);
-        setTimeout(function () {
-          Bangle.removeListener("HRM-raw", tmp.listener);
-          Bangle.setHRMPower(false, "sleepstream-wearing");
-          returnFn(tmp.isWearing, data);
-        }, 34);
-      }, 2500);
-    },
-
-    applyState: function (data) {
-      data.prevStatus = this.status;
-      data.prevConsecutive = this.consecutive;
-      this.info.lastCheck = data.timestamp;
-
-      // The original sleeplog state machine only treated deep sleep as the
-      // start of a confirmed sleep session. In monitoring mode our classifier
-      // has a fuller stage set, so light/deep/REM all count as sleep-like.
-      var isSleepStage = data.status === STATUS.LIGHT_SLEEP ||
-        data.status === STATUS.DEEP_SLEEP ||
-        data.status === STATUS.REM_SLEEP;
-      var wasSleepStage = this.status === STATUS.LIGHT_SLEEP ||
-        this.status === STATUS.DEEP_SLEEP ||
-        this.status === STATUS.REM_SLEEP;
-
-      // Keep the old sleeplog correction only for fallback health-event mode.
-      // During continuous monitoring, forcing early light sleep back to awake
-      // delays sleep onset and distorts REM-latency timing.
-      if (!this.monitoring && data.status === STATUS.LIGHT_SLEEP &&
-        this.status !== STATUS.DEEP_SLEEP && !this.info.asleepSince) {
-        data.status = STATUS.AWAKE;
-        isSleepStage = false;
-      }
-
-      data.consecutive = this.consecutive;
-
-      // Track possible sleep/wake transitions. The consecutive flag is kept
-      // for compatibility with older receiver/UI logic, but stage decisions
-      // now come from the classifier's own temporal smoothing.
-      if (isSleepStage && !wasSleepStage) {
-        this.info.asleepSince = this.info.asleepSince || data.timestamp;
-        data.consecutive = CONSECUTIVE.UNKNOWN;
-      } else if (data.status === STATUS.AWAKE && wasSleepStage) {
-        this.info.awakeSince = this.info.awakeSince || data.timestamp;
-        data.consecutive = CONSECUTIVE.UNKNOWN;
-      }
-
-      if (data.status === STATUS.NOT_WORN) this.consecutive = CONSECUTIVE.NO;
-
-      if (!this.consecutive) {
-        if (isSleepStage && this.info.asleepSince &&
-          this.info.asleepSince + this.conf.minConsec <= data.timestamp) {
-          data.consecutive = CONSECUTIVE.YES;
-          this.info.awakeSince = 0;
-        } else if (data.status <= STATUS.AWAKE && this.info.awakeSince &&
-          this.info.awakeSince + this.conf.maxAwake <= data.timestamp) {
-          data.consecutive = CONSECUTIVE.NO;
-          this.info.asleepSince = 0;
-        }
-      }
-
-      var changed = data.status !== this.status || data.consecutive !== this.consecutive;
-      if (changed) {
-        this.status = data.status;
-        this.consecutive = data.consecutive;
-        this.info.lastChange = data.timestamp;
-        this.appendStatus(data.timestamp, data.status, data.consecutive);
-      }
-
-      return changed;
-    },
-
-    appendStatus: function (timestamp, status, consecutive) {
-      var line = [((timestamp / 6E5) | 0), status | 0, consecutive | 0].join(",") + "\n";
-      require("Storage").open("sleepstream.log", "a").write(line);
-    },
-
-    sendUpdate: function (data, sourceMode) {
+    sendUpdate: function (data) {
       this.sequence += 1;
 
+      // The packet intentionally contains only the live epoch result and the
+      // features the receiver/reporting code needs. Session state is controlled
+      // by the explicit start/stop commands sent by the watch UI.
       var pkt = {
         t: "dreamstream",
         v: 1,
         seq: this.sequence,
         ts: (data.timestamp / 1000) | 0,
         status: data.status,
-        consecutive: data.consecutive,
-        source_mode: sourceMode,
         movement: data.movement === undefined ? null : data.movement,
         bpm: data.bpm === undefined ? null : data.bpm
       };
 
-      // Include HRV features when monitoring
       if (this.monitoring && this.lastFeatures) {
         pkt.sdhr = Math.round(this.lastFeatures.sdHR * 10) / 10;
       }

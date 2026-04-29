@@ -123,7 +123,7 @@
     var y = 56;
     g.drawString("conn " + (!!rt.connected) + "  monitor " + (rt.monitoring ? "ON" : "off"), 4, y); y += 10;
     g.drawString("stage " + statusLabel(rt.status) + " (" + stageChar(rt.currentStage) + ")", 4, y); y += 10;
-    g.drawString("seq " + (rt.sequence | 0) + "  consec " + (rt.consecutive | 0), 4, y); y += 10;
+    g.drawString("seq " + (rt.sequence | 0) + "  last " + shortClock(rt.info && rt.info.lastEpoch), 4, y); y += 10;
     g.drawString("move " + (f.activity !== undefined ? f.activity.toFixed(4) : "-") + "  bpm " + (f.meanHR ? f.meanHR.toFixed(1) : "-"), 4, y); y += 10;
     g.drawString("sdhr " + (f.sdHR ? f.sdHR.toFixed(1) : "-") + "  hrN " + (f.hrCount | 0), 4, y); y += 10;
 
