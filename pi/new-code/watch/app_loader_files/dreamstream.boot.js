@@ -7,6 +7,8 @@
   var STATUS = lib.STATUS;
   var RUNTIME_FILE = "sleepstream.runtime.json";
   var EPOCH_LOG = "sleepstream.epochs.log";
+  var AUTO_RESUME_DELAY_MS = 3000;
+  var WATCHDOG_MS = 120000;
 
   var conf = lib.loadSettings();
   if (!conf.enabled) {
@@ -19,6 +21,9 @@
     status: STATUS.UNKNOWN,
     sequence: 0,
     connected: false,
+    trackingWanted: false,
+    trackingStartedAt: 0,
+    savedSleepStart: 0,
     info: {
       lastEpoch: 0,
       lastChange: 0
@@ -28,6 +33,7 @@
     monitoring: false,
     nightCtx: null,
     epochInterval: null,
+    watchdogInterval: null,
     accelListener: null,
     hrmListener: null,
 
@@ -41,7 +47,9 @@
     lastFeatures: null,
 
     onConnect: function () {
-      global.sleepstream.connected = true;
+      var rt = global.sleepstream;
+      rt.connected = true;
+      if (rt.trackingWanted) rt.sendStartControl(true);
     },
 
     onDisconnect: function () {
@@ -53,10 +61,20 @@
       NRF.on("connect", this.onConnect);
       NRF.on("disconnect", this.onDisconnect);
       E.on("kill", this.saveRuntimeState);
+      this.startWatchdog();
+      if (this.trackingWanted) {
+        setTimeout(function () {
+          if (global.sleepstream) global.sleepstream.ensureMonitoring();
+        }, AUTO_RESUME_DELAY_MS);
+      }
     },
 
     stop: function () {
       this.stopMonitoring();
+      if (this.watchdogInterval) {
+        clearInterval(this.watchdogInterval);
+        this.watchdogInterval = null;
+      }
       NRF.removeListener("connect", this.onConnect);
       NRF.removeListener("disconnect", this.onDisconnect);
       E.removeListener("kill", this.saveRuntimeState);
@@ -64,36 +82,76 @@
 
     saveRuntimeState: function () {
       if (!global.sleepstream) return;
-      require("Storage").writeJSON(RUNTIME_FILE, {
-        status: global.sleepstream.status,
-        sequence: global.sleepstream.sequence,
-        info: global.sleepstream.info
-      });
+      var rt = global.sleepstream;
+      var sleepStart = rt.savedSleepStart;
+      if (rt.nightCtx && rt.nightCtx.sleepStart) sleepStart = rt.nightCtx.sleepStart;
+      try {
+        require("Storage").writeJSON(RUNTIME_FILE, {
+          status: rt.status,
+          sequence: rt.sequence,
+          info: rt.info,
+          trackingWanted: rt.trackingWanted,
+          trackingStartedAt: rt.trackingStartedAt,
+          sleepStart: sleepStart
+        });
+      } catch (e) { }
     },
 
     restoreRuntimeState: function () {
       var saved = require("Storage").readJSON(RUNTIME_FILE, true) || {};
       if (typeof saved.status === "number") this.status = saved.status | 0;
       if (typeof saved.sequence === "number") this.sequence = saved.sequence >>> 0;
+      this.trackingWanted = saved.trackingWanted === true;
+      this.trackingStartedAt = typeof saved.trackingStartedAt === "number" ? saved.trackingStartedAt : 0;
+      this.savedSleepStart = typeof saved.sleepStart === "number" ? saved.sleepStart : 0;
 
       if (saved.info && typeof saved.info === "object") {
-        this.info.lastEpoch = saved.info.lastEpoch | 0;
-        this.info.lastChange = saved.info.lastChange | 0;
+        this.info.lastEpoch = typeof saved.info.lastEpoch === "number" ? saved.info.lastEpoch : 0;
+        this.info.lastChange = typeof saved.info.lastChange === "number" ? saved.info.lastChange : 0;
       }
     },
 
     // Sleep monitoring
 
-    startMonitoring: function () {
-      if (this.monitoring) return;
+    startWatchdog: function () {
+      if (this.watchdogInterval) return;
+      var self = this;
+      this.watchdogInterval = setInterval(function () {
+        self.ensureMonitoring();
+      }, WATCHDOG_MS);
+    },
+
+    ensureMonitoring: function () {
+      if (this.trackingWanted && !this.monitoring) this.startMonitoring(true);
+    },
+
+    startMonitoring: function (autoResume) {
+      var resume = autoResume === true;
+      if (this.monitoring) {
+        if (!this.trackingWanted) {
+          this.trackingWanted = true;
+          this.saveRuntimeState();
+        }
+        return;
+      }
+
+      var now = Date.now();
+      this.trackingWanted = true;
+      if (!resume || !this.trackingStartedAt) this.trackingStartedAt = now;
+      if (!resume) this.savedSleepStart = 0;
+      this.saveRuntimeState();
+
       this.monitoring = true;
       this.nightCtx = new lib.NightContext();
-      this.nightCtx.monStart = Date.now();
+      this.nightCtx.monStart = this.trackingStartedAt || now;
+      if (resume && this.savedSleepStart) this.nightCtx.sleepStart = this.savedSleepStart;
       this.status = STATUS.UNKNOWN;
       this.currentStage = STATUS.UNKNOWN;
       this.lastFeatures = null;
-      this.info.lastEpoch = 0;
-      this.info.lastChange = 0;
+      if (!resume) {
+        this.info.lastEpoch = 0;
+        this.info.lastChange = 0;
+      }
 
       // Start every manual session with empty sensor accumulators.
       this.magSum = 0;
@@ -135,11 +193,24 @@
         self.processEpoch();
       }, (this.conf.epochLen || 60) * 1000);
 
-      Bangle.buzz(80);
+      if (resume) this.sendStartControl(true);
+      else Bangle.buzz(80);
     },
 
     stopMonitoring: function () {
-      if (!this.monitoring) return;
+      var wasMonitoring = this.monitoring;
+      this.trackingWanted = false;
+      this.trackingStartedAt = 0;
+      this.savedSleepStart = 0;
+      this.status = STATUS.UNKNOWN;
+      this.currentStage = STATUS.UNKNOWN;
+      this.lastFeatures = null;
+      this.info.lastChange = Date.now();
+
+      if (!wasMonitoring) {
+        this.saveRuntimeState();
+        return;
+      }
       this.monitoring = false;
 
       Bangle.setHRMPower(false, "sleepstream");
@@ -160,10 +231,7 @@
       }
 
       this.nightCtx = null;
-      this.status = STATUS.UNKNOWN;
-      this.currentStage = STATUS.UNKNOWN;
-      this.lastFeatures = null;
-      this.info.lastChange = Date.now();
+      this.saveRuntimeState();
 
       Bangle.buzz(80);
     },
@@ -184,7 +252,12 @@
       };
 
       this.lastFeatures = features;
+      var previousSleepStart = this.nightCtx.sleepStart;
       this.currentStage = lib.classifyEpoch(features, this.nightCtx, this.conf);
+      if (this.nightCtx.sleepStart && this.nightCtx.sleepStart !== previousSleepStart) {
+        this.savedSleepStart = this.nightCtx.sleepStart;
+        this.saveRuntimeState();
+      }
       this.info.lastEpoch = now;
       if (this.status !== this.currentStage) this.info.lastChange = now;
       this.status = this.currentStage;
@@ -221,6 +294,18 @@
       ].join(",") + "\n";
       try {
         require("Storage").open(EPOCH_LOG, "a").write(line);
+      } catch (e) { }
+    },
+
+    sendStartControl: function (autoResume) {
+      var pkt = {
+        cmd: "start",
+        src: "dreamstream",
+        ts: (Date.now() / 1000) | 0
+      };
+      if (autoResume) pkt.auto = true;
+      try {
+        Bluetooth.println(JSON.stringify(pkt));
       } catch (e) { }
     },
 

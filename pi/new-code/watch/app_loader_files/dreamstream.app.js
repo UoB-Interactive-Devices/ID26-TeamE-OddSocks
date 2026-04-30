@@ -80,7 +80,7 @@
       return;
     }
     sendControl("stop");
-    if (rt.monitoring) rt.stopMonitoring();
+    rt.stopMonitoring();
     Bangle.buzz(50);
     draw();
   }
@@ -91,7 +91,7 @@
       Bangle.buzz(120);
       return;
     }
-    if (rt.monitoring) stopTracking();
+    if (rt.monitoring || rt.trackingWanted) stopTracking();
     else startTracking();
   }
 
@@ -121,7 +121,7 @@
     }
 
     var y = 56;
-    g.drawString("conn " + (!!rt.connected) + "  monitor " + (rt.monitoring ? "ON" : "off"), 4, y); y += 10;
+    g.drawString("conn " + (!!rt.connected) + "  mon " + (rt.monitoring ? "ON" : "off") + " keep " + (rt.trackingWanted ? "ON" : "off"), 4, y); y += 10;
     g.drawString("stage " + statusLabel(rt.status) + " (" + stageChar(rt.currentStage) + ")", 4, y); y += 10;
     g.drawString("seq " + (rt.sequence | 0) + "  last " + shortClock(rt.info && rt.info.lastEpoch), 4, y); y += 10;
     g.drawString("move " + (f.activity !== undefined ? f.activity.toFixed(4) : "-") + "  bpm " + (f.meanHR ? f.meanHR.toFixed(1) : "-"), 4, y); y += 10;
@@ -135,7 +135,7 @@
       g.drawString("pi cmd: none yet", 4, y);
     }
 
-    drawButton(!!rt.monitoring);
+    drawButton(!!(rt.monitoring || rt.trackingWanted));
   }
 
   var tick;
