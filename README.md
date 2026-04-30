@@ -29,7 +29,7 @@ Jack Roddam
 
 Elliot Golledge
 
-Ethan Rogers
+Ethan Pascoe
 
 # Abstract
 
